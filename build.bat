@@ -5,6 +5,6 @@ set "VS=C:\Program Files\Microsoft Visual Studio\18\Community"
 call "%VS%\Common7\Tools\VsDevCmd.bat" -arch=x64 >nul
 set "PATH=%PATH%;%VS%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;%VS%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja"
 cd /d "%~dp0"
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release || exit /b 1
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON || exit /b 1
 cmake --build build || exit /b 1
 if /i "%1"=="run" build\3d_fluid_simulation.exe
