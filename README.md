@@ -1,0 +1,1 @@
+A real time 3D fluid simulation written in C++ and OpenGL, simulating a large number of particles on the GPU with SPH (Smoothed Particle Hydrodynamics) and renders tehm as a smooth, refractive water surface.
