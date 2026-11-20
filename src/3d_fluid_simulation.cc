@@ -5,6 +5,7 @@
 #include "RenderShader.hh"
 #include "ConstantBuffer.hh"
 #include "Camera.hh"
+#include "Gui.hh"
 
 #include <exception>
 #include <print>
@@ -43,6 +44,7 @@ try
     // orbit camera, plus the constant buffer that carries its matrix to the shader
     Camera camera {};
     ConstantBuffer camera_buffer { graphics, sizeof(::DirectX::XMFLOAT4X4) };
+    Gui gui { window, graphics };
 
     // keep running until closed (on escape key), keep redrawing and handle input
     while (!window.shouldClose())
@@ -61,6 +63,8 @@ try
         camera_buffer.write(graphics, &view_projection);
 
         graphics.beginFrame(0.0f, 0.0f, 0.0f, 1.0f);
+        gui.beginFrame();
+        gui.drawFps();
 
         // draw every particle as a point, reading positions from the buffer
         ::ID3D11ShaderResourceView* srv { particles.srv() };
@@ -70,6 +74,9 @@ try
         graphics.context()->IASetInputLayout(nullptr);
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
         graphics.context()->Draw(static_cast<::UINT>(points.size()), 0u);
+
+        // draw the on-screen overlay on top of the scene
+        gui.render();
         
         graphics.present(false);
         window.pollEvents();
