@@ -8,6 +8,8 @@
 #include <vector>
 #include <cstdint>
 
+#include <DirectXMath.h>
+
 int main()
 try
 {
@@ -17,17 +19,22 @@ try
     Graphics graphics { window.hwnd(), window.width(), window.height() };
     std::println("Direct3D 11 ready, feature level {:#x}", static_cast<unsigned>(graphics.featureLevel()));
 
-    std::vector<uint32_t> data(1000, 0);
-    Buffer buffer { graphics, sizeof(uint32_t), 1000, data.data() };
-    Shader shader { graphics, L"shaders/test.hlsl" };
-    ::ID3D11UnorderedAccessView* uav { buffer.uav() };
-    graphics.context()->CSSetUnorderedAccessViews(0u, 1u, &uav, nullptr);
+    std::vector<::DirectX::XMFLOAT4> points {};
 
-    // run the test shader over the buffer, then read the results back and check them
-    shader.use(graphics);
-    shader.dispatch(graphics, 4u, 1u, 1u);
-    buffer.read(graphics, data.data());
-    std::println("data[0] = {}, data[1] = {}, data[999] = {}", data[0], data[1], data[999]);
+    // yikes
+    for (int x {0}; x <= 20; ++x)
+    {
+        for (int y {0}; y <= 20; ++y)
+        {
+            for (int z {0}; z <= 20; ++z)
+            {
+                points.emplace_back(x, y, z, 1.0f);
+            }
+        }
+    }
+
+    Buffer buffer { graphics, sizeof(::DirectX::XMFLOAT4), 8000, points.data() };
+
 
     // keep running until closed (on escape key), keep redrawing and handle input
     while (!window.shouldClose())
