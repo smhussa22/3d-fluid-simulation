@@ -22,6 +22,9 @@ public:
     // advances every particle by delta_time seconds: applies gravity, moves them, and bounces them off the tank walls
     void step(float delta_time);
 
+    // puts every particle back at its starting position and stops it moving
+    void reset();
+
     // current particle positions (w = 1), laid out so they can be uploaded straight to the GPU buffer
     const std::vector<::DirectX::XMFLOAT4>& positions() const;
 
@@ -30,6 +33,7 @@ private:
     static constexpr float gravity { -9.8f }; // gravity is 9.8 m/s
 
     std::vector<::DirectX::XMFLOAT4> m_positions {};  // positions of each particle; m_positions[i] = position vector of the ith particle
+    std::vector<::DirectX::XMFLOAT4> m_initial_positions {}; // the starting positions, restored by reset()
     std::vector<::DirectX::XMFLOAT3> m_velocities {}; // velocities of each particle, m_velocities[i] = velocity vector of the ith particle
 
     // define boundaries of a box for bouncing

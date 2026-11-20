@@ -27,6 +27,12 @@ public:
     // shows the current frames per second in a small overlay in the top-right corner
     void drawFps();
 
+    // shows the controls panel in the top-left corner (more sliders and toggles will go here later); returns true on the frame Reset is clicked
+    bool drawControls();
+
+    // true while the mouse is over the panel (or dragging it), so the scene should ignore the mouse
+    bool wantsMouse() const;
+
     // draws everything built this frame on top of the scene; call after the scene, before present
     void render();
 

@@ -54,6 +54,37 @@ void Gui::drawFps()
 
 }
 
+bool Gui::drawControls()
+{
+
+    bool reset_clicked { false };
+    ::ImGui::SetNextWindowPos(::ImVec2 { 10.0f, 10.0f }, ImGuiCond_Always);
+
+    if (::ImGui::Begin("Controls", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
+    {
+
+        // more controls (sliders, toggles) get added here as the project grows
+        if (::ImGui::Button("Reset (R)"))
+        {
+
+            reset_clicked = true;
+
+        }
+
+    }
+
+    ::ImGui::End();
+    return reset_clicked;
+
+}
+
+bool Gui::wantsMouse() const
+{
+
+    return ::ImGui::GetIO().WantCaptureMouse;
+
+}
+
 void Gui::render()
 {
 

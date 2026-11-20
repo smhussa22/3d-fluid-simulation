@@ -118,6 +118,13 @@ void Window::addScroll(double amount)
 
 }
 
+double Window::time() const
+{
+
+    return ::glfwGetTime();
+
+}
+
 ::HWND Window::hwnd() const
 {
 

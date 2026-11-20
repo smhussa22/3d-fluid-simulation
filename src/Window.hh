@@ -68,6 +68,9 @@ public:
     // adds scroll movement; only called by the GLFW scroll callback
     void addScroll(double amount);
 
+    // seconds since the window system started, used to measure frame time
+    double time() const;
+
     // native Win32 window handle, which Direct3D's swap chain attaches to
     ::HWND hwnd() const;
 

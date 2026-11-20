@@ -1,10 +1,12 @@
 #include "Simulation.hh"
 
+#include <algorithm>
 #include <utility>
 
 Simulation::Simulation(std::vector<::DirectX::XMFLOAT4> positions) : m_positions { std::move(positions) }
 {
 
+    m_initial_positions = m_positions;
     m_velocities.resize(m_positions.size());
 
 }
@@ -18,7 +20,7 @@ void Simulation::step(float delta_time)
         // semi-implicit Euler integration
         auto& position { m_positions[i] };
         auto& velocity { m_velocities[i] };
-        velocity.y *= gravity;
+        velocity.y += gravity * delta_time; // gravity is acceleration not a multiplier for velocity
         position.x += velocity.x * delta_time;
         position.y += velocity.y * delta_time;
         position.z += velocity.z * delta_time;
@@ -63,6 +65,14 @@ void Simulation::step(float delta_time)
         }
 
     }
+
+}
+
+void Simulation::reset()
+{
+
+    m_positions = m_initial_positions;
+    std::ranges::fill(m_velocities, ::DirectX::XMFLOAT3 { 0.0f, 0.0f, 0.0f });
 
 }
 
