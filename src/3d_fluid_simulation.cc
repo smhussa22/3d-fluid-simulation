@@ -4,6 +4,7 @@
 #include "Shader.hh"
 #include "RenderShader.hh"
 #include "ConstantBuffer.hh"
+#include "Camera.hh"
 
 #include <exception>
 #include <print>
@@ -39,37 +40,9 @@ try
     Buffer particles { graphics, sizeof(::DirectX::XMFLOAT4), 8000, points.data() };
     RenderShader render_shader { graphics, L"shaders/particles.hlsl" };
 
-    // view matrix; transforms world coordinates into camera-relative coordinates
-    // set up a fixed camera...
-    const ::DirectX::XMMATRIX view_matrix 
-    { 
-        ::DirectX::XMMatrixLookAtLH(::DirectX::XMVectorSet(5.0f, 5.0f, 5.0f, 1.0f),  // ...at this coordinates (x,y,z) (theres a 4th w in the code but ignore it)
-        ::DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),                              // ...looking at these coordinates
-        ::DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f))                              // ...where these coordinates are considered vertically upwards
-    };
-
-    // projection matrix; transforms camera-space coordinates into clip space AND applies perspective so distant objects appear smaller
-    const ::DirectX::XMMATRIX projection_matrix 
-    { 
-        // 60 deg vertical fov, how wide the cameras viewing angle is vertically
-        // 1280/720 aspect ratio; just the window size and how wide the viewing area should be relative to the height
-        // 0.1 units near clipping plane (the boundary that determines which parts of 3d geometry are visible and which parts should be discarded)
-            // iow geometry closer than 0.1 units gets "clipped" (discarded since it falls outside the camera's viewing boundaries)
-        // 100 units far clipping distance, geometry farther than 100 units from teh camera gets clipped
-        // CLIPPING PLANE DIAGRAM: https://www.researchgate.net/figure/Principles-and-parameters-of-perspective-projection-The-red-and-yellow-balls-represent_fig4_395502841
-        ::DirectX::XMMatrixPerspectiveFovLH(::DirectX::XMConvertToRadians(60.0f), 1280.0f / 720.0f, 0.1f, 100.0f) 
-    };
-    
-    // view projection; we take the WORLD - TO - CAMERA transformation from the view matrix,
-    // and the CAMERA SPACE TO CLIP SPACE perspective projection from the projection matrix, and combine them
-    // to transform world coordinates into clip space.
-    ::DirectX::XMFLOAT4X4 view_projection_matrix {};
-    ::DirectX::XMStoreFloat4x4(&view_projection_matrix, view_matrix * projection_matrix);
-    ConstantBuffer camera { graphics, sizeof(::DirectX::XMFLOAT4X4) };
-    camera.write(graphics, &view_projection_matrix);
-
-    // tl;dr The view matrix uses your camera's position, target, and up direction 
-    // to calculate a coordinate transformation that makes the rest of the scene appear from the camera's chosen perspective.
+    // orbit camera, plus the constant buffer that carries its matrix to the shader
+    Camera camera {};
+    ConstantBuffer camera_buffer { graphics, sizeof(::DirectX::XMFLOAT4X4) };
 
     // keep running until closed (on escape key), keep redrawing and handle input
     while (!window.shouldClose())
@@ -82,12 +55,17 @@ try
 
         }
 
+        // move the camera from mouse input, then upload its new matrix
+        camera.update(window);
+        const ::DirectX::XMFLOAT4X4 view_projection { camera.viewProjection(static_cast<float>(window.width()) / static_cast<float>(window.height())) };
+        camera_buffer.write(graphics, &view_projection);
+
         graphics.beginFrame(0.0f, 0.0f, 0.0f, 1.0f);
 
         // draw every particle as a point, reading positions from the buffer
         ::ID3D11ShaderResourceView* srv { particles.srv() };
         render_shader.use(graphics);
-        camera.bindVertex(graphics, 0u);
+        camera_buffer.bindVertex(graphics, 0u);
         graphics.context()->VSSetShaderResources(0u, 1u, &srv);
         graphics.context()->IASetInputLayout(nullptr);
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
