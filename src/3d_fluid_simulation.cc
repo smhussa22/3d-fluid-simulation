@@ -39,18 +39,37 @@ try
     Buffer particles { graphics, sizeof(::DirectX::XMFLOAT4), 8000, points.data() };
     RenderShader render_shader { graphics, L"shaders/particles.hlsl" };
 
-    // set up a fixed camera at
-    const ::DirectX::XMMATRIX view 
+    // view matrix; transforms world coordinates into camera-relative coordinates
+    // set up a fixed camera...
+    const ::DirectX::XMMATRIX view_matrix 
     { 
-        ::DirectX::XMMatrixLookAtLH(::DirectX::XMVectorSet(3.0f, 2.0f, -5.0f, 1.0f), // where the camera is, the eye
-        ::DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),                              // the point it looks at
-        ::DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f))                              // which way is up
+        ::DirectX::XMMatrixLookAtLH(::DirectX::XMVectorSet(5.0f, 5.0f, 5.0f, 1.0f),  // ...at this coordinates (x,y,z) (theres a 4th w in the code but ignore it)
+        ::DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),                              // ...looking at these coordinates
+        ::DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f))                              // ...where these coordinates are considered vertically upwards
     };
-    const ::DirectX::XMMATRIX projection { ::DirectX::XMMatrixPerspectiveFovLH(::DirectX::XMConvertToRadians(60.0f), 1280.0f / 720.0f, 0.1f, 100.0f) };
-    ::DirectX::XMFLOAT4X4 view_projection {};
-    ::DirectX::XMStoreFloat4x4(&view_projection, view * projection);
+
+    // projection matrix; transforms camera-space coordinates into clip space AND applies perspective so distant objects appear smaller
+    const ::DirectX::XMMATRIX projection_matrix 
+    { 
+        // 60 deg vertical fov, how wide the cameras viewing angle is vertically
+        // 1280/720 aspect ratio; just the window size and how wide the viewing area should be relative to the height
+        // 0.1 units near clipping plane (the boundary that determines which parts of 3d geometry are visible and which parts should be discarded)
+            // iow geometry closer than 0.1 units gets "clipped" (discarded since it falls outside the camera's viewing boundaries)
+        // 100 units far clipping distance, geometry farther than 100 units from teh camera gets clipped
+        // CLIPPING PLANE DIAGRAM: https://www.researchgate.net/figure/Principles-and-parameters-of-perspective-projection-The-red-and-yellow-balls-represent_fig4_395502841
+        ::DirectX::XMMatrixPerspectiveFovLH(::DirectX::XMConvertToRadians(60.0f), 1280.0f / 720.0f, 0.1f, 100.0f) 
+    };
+    
+    // view projection; we take the WORLD - TO - CAMERA transformation from the view matrix,
+    // and the CAMERA SPACE TO CLIP SPACE perspective projection from the projection matrix, and combine them
+    // to transform world coordinates into clip space.
+    ::DirectX::XMFLOAT4X4 view_projection_matrix {};
+    ::DirectX::XMStoreFloat4x4(&view_projection_matrix, view_matrix * projection_matrix);
     ConstantBuffer camera { graphics, sizeof(::DirectX::XMFLOAT4X4) };
-    camera.write(graphics, &view_projection);
+    camera.write(graphics, &view_projection_matrix);
+
+    // tl;dr The view matrix uses your camera's position, target, and up direction 
+    // to calculate a coordinate transformation that makes the rest of the scene appear from the camera's chosen perspective.
 
     // keep running until closed (on escape key), keep redrawing and handle input
     while (!window.shouldClose())
@@ -63,7 +82,7 @@ try
 
         }
 
-        graphics.beginFrame(0.1f, 0.1f, 0.15f, 1.0f);
+        graphics.beginFrame(0.0f, 0.0f, 0.0f, 1.0f);
 
         // draw every particle as a point, reading positions from the buffer
         ::ID3D11ShaderResourceView* srv { particles.srv() };

@@ -5,6 +5,7 @@
 #include <Windows.h>
 
 #include <memory>
+#include <utility>
 
 // destroys a GLFW window when its owning pointer goes out of scope
 struct WindowDeleter
@@ -55,6 +56,18 @@ public:
     // true while the given GLFW_KEY_* is held, as of the last pollEvents()
     bool key(int k) const;
 
+    // true while the given GLFW_MOUSE_BUTTON_* is held, as of the last pollEvents()
+    bool mouseButton(int button) const;
+
+    // cursor position in pixels from the window's top-left corner, as of the last pollEvents()
+    std::pair<double, double> cursor() const;
+
+    // scroll wheel movement accumulated since the last call (positive = away from the user); resets to zero when read
+    double takeScroll();
+
+    // adds scroll movement; only called by the GLFW scroll callback
+    void addScroll(double amount);
+
     // native Win32 window handle, which Direct3D's swap chain attaches to
     ::HWND hwnd() const;
 
@@ -72,6 +85,7 @@ private:
     WindowPtr m_window { nullptr }; // owned GLFW window
     int m_width { 0 };              // client width in pixels
     int m_height { 0 };             // client height in pixels
+    double m_scroll { 0.0 };        // scroll wheel movement since takeScroll() was last called
 
 };
 

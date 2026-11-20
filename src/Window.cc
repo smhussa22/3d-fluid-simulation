@@ -5,6 +5,20 @@
 
 #include <stdexcept>
 
+namespace
+{
+
+    // GLFW calls this on every scroll; it finds our Window through the user pointer and adds up the movement
+    void _on_scroll(::GLFWwindow* glfw_window, double, double y_offset)
+    {
+
+        auto* window { static_cast<Window*>(::glfwGetWindowUserPointer(glfw_window)) };
+        window->addScroll(y_offset);
+
+    }
+
+}
+
 Window::Window(int width, int height, const char* title) : m_width { width }, m_height { height }
 {
 
@@ -28,6 +42,10 @@ Window::Window(int width, int height, const char* title) : m_width { width }, m_
         throw std::runtime_error { "glfwCreateWindow failed" };
 
     }
+
+    // let the scroll callback find this Window (it can't move, so the pointer stays valid)
+    ::glfwSetWindowUserPointer(m_window.get(), this);
+    ::glfwSetScrollCallback(m_window.get(), _on_scroll);
 
 }
 
@@ -64,6 +82,39 @@ bool Window::key(int k) const
 {
 
     return ::glfwGetKey(m_window.get(), k) == GLFW_PRESS;
+
+}
+
+bool Window::mouseButton(int button) const
+{
+
+    return ::glfwGetMouseButton(m_window.get(), button) == GLFW_PRESS;
+
+}
+
+std::pair<double, double> Window::cursor() const
+{
+
+    double x { 0.0 };
+    double y { 0.0 };
+    ::glfwGetCursorPos(m_window.get(), &x, &y);
+    return { x, y };
+
+}
+
+double Window::takeScroll()
+{
+
+    const double scroll { m_scroll };
+    m_scroll = 0.0;
+    return scroll;
+
+}
+
+void Window::addScroll(double amount)
+{
+
+    m_scroll += amount;
 
 }
 
