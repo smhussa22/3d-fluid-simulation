@@ -47,6 +47,12 @@ try
     Simulation simulation { std::move(points) };
     RenderShader render_shader { graphics, L"shaders/particles.hlsl" };
 
+    // the tank outline: a shader that draws a box's 12 edges, and the box corners it reads
+    RenderShader box_shader { graphics, L"shaders/box.hlsl" };
+    ConstantBuffer box_buffer { graphics, 2uz * sizeof(::DirectX::XMFLOAT4) };
+    const ::DirectX::XMFLOAT4 box_corners[2] { { simulation.boundsMin().x, simulation.boundsMin().y, simulation.boundsMin().z, 0.0f }, { simulation.boundsMax().x, simulation.boundsMax().y, simulation.boundsMax().z, 0.0f } };
+    box_buffer.write(graphics, box_corners);
+
     // orbit camera, plus the constant buffer that carries its matrix to the shader
     Camera camera {};
     ConstantBuffer camera_buffer { graphics, sizeof(::DirectX::XMFLOAT4X4) };
@@ -55,6 +61,7 @@ try
     // the physics advances in fixed-size steps, however fast frames are drawn
     constexpr double step_time { 1.0 / 480.0 };
     double previous_time { window.time() };
+    constexpr int max_steps_per_frame { 16 }; // if the physics falls behind, run slower than real time instead of spiraling
     double accumulator { 0.0 };
     bool r_was_down { false };
 
@@ -71,14 +78,25 @@ try
 
         // measure the last frame (capped so a long stall doesn't make the physics race to catch up), then run as many fixed steps as that time allows
         const double now { window.time() };
-        accumulator += std::min(now - previous_time, 0.25);
+        accumulator += std::min(now - previous_time, 0.05);
         previous_time = now;
 
-        while (accumulator >= step_time)
+        int steps_this_frame { 0 };
+
+        while (accumulator >= step_time && steps_this_frame < max_steps_per_frame)
         {
 
             simulation.step(static_cast<float>(step_time));
             accumulator -= step_time;
+            ++steps_this_frame;
+
+        }
+
+        // hit the cap: drop the time we couldn't simulate so it doesn't pile up
+        if (accumulator >= step_time)
+        {
+
+            accumulator = 0.0;
 
         }
 
@@ -127,6 +145,12 @@ try
         graphics.context()->IASetInputLayout(nullptr);
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
         graphics.context()->Draw(static_cast<::UINT>(particle_count), 0u);
+
+        // draw the tank outline as 12 lines
+        box_shader.use(graphics);
+        box_buffer.bindVertex(graphics, 1u);
+        graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+        graphics.context()->Draw(24u, 0u);
 
         // draw the on-screen overlay on top of the scene
         gui.render();

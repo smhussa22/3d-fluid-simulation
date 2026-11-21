@@ -169,6 +169,20 @@ void Simulation::reset()
 
 }
 
+const ::DirectX::XMFLOAT3& Simulation::boundsMin() const
+{
+
+    return m_bounds_min;
+
+}
+
+const ::DirectX::XMFLOAT3& Simulation::boundsMax() const
+{
+
+    return m_bounds_max;
+
+}
+
 Simulation::Settings& Simulation::settings()
 {
 

@@ -36,6 +36,10 @@ public:
     // puts every particle back at its starting position and stops it moving
     void reset();
 
+    // the corners of the tank, so the renderer can draw it
+    const ::DirectX::XMFLOAT3& boundsMin() const;
+    const ::DirectX::XMFLOAT3& boundsMax() const;
+
     // the live-tunable settings, so a UI can read and change them
     Settings& settings();
 
