@@ -36,7 +36,7 @@ try
         {
             for (int z {-5}; z < 5; ++z)
             {
-                points.emplace_back(x * 0.05f, y * 0.05f, z * 0.05f, 1.0f); // TEMP: 0.05 squeezes the cube to test the pressure sign; set back to 0.1f
+                points.emplace_back(x * 0.1f, y * 0.1f, z * 0.1f, 1.0f);
             }
         }
     }
@@ -53,7 +53,7 @@ try
     Gui gui { window, graphics };
 
     // the physics advances in fixed-size steps, however fast frames are drawn
-    constexpr double step_time { 1.0 / 120.0 };
+    constexpr double step_time { 1.0 / 480.0 };
     double previous_time { window.time() };
     double accumulator { 0.0 };
     bool r_was_down { false };

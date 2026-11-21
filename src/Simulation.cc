@@ -54,10 +54,6 @@ Simulation::Simulation(std::vector<::DirectX::XMFLOAT4> positions) : m_positions
     _compute_densities();
     _compute_pressures();
 
-    // TEMP: pressure sign check. corner particle 0 should be pushed outward (all three components negative); middle particle 555 should be near zero
-    _compute_pressure_forces();
-    std::println("TEMP density[0] = {:.1f}, pressure[0] = {:.1f}, accel[0] = ({:.1f}, {:.1f}, {:.1f})", m_densities[0], m_pressures[0], m_accelerations[0].x, m_accelerations[0].y, m_accelerations[0].z);
-    std::println("TEMP density[555] = {:.1f}, pressure[555] = {:.1f}, accel[555] = ({:.1f}, {:.1f}, {:.1f})", m_densities[555], m_pressures[555], m_accelerations[555].x, m_accelerations[555].y, m_accelerations[555].z);
 
 }
 
@@ -69,8 +65,8 @@ void Simulation::step(float delta_time)
     _compute_pressures();
     _compute_pressure_forces();
 
-    // the physics runs 120 steps a second, so print the middle particle and the most crowded one about once a second
-    if (++m_step_count % 120uz == 0uz)
+    // the physics runs 480 steps a second, so print the middle particle and the most crowded one about once a second
+    if (++m_step_count % 480uz == 0uz)
     {
 
         std::println("density[555] = {:.1f}, max density = {:.1f}", m_densities[555], *std::ranges::max_element(m_densities));
@@ -198,7 +194,7 @@ void Simulation::_compute_pressure_forces()
 
             float distance_squared { delta_x * delta_x + delta_y * delta_y + delta_z * delta_z };
             
-            if (distance_squared >= kernel_radius * kernel_radius)
+            if (distance_squared >= kernel_radius * kernel_radius || distance_squared == 0.0f)
             {
                 continue;
             }
