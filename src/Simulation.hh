@@ -38,10 +38,17 @@ private:
     
     static constexpr float rest_density { 1000.0f }; // water has a density of 1000 kg per cubed metre
 
+    static constexpr float stiffness { 3.0f }; // how strongly the fluid resists being squeezed; 3.0
+
     std::vector<::DirectX::XMFLOAT4> m_positions {};  // positions of each particle; m_positions[i] = position vector of the ith particle
     std::vector<::DirectX::XMFLOAT4> m_initial_positions {}; // the starting positions, restored by reset()
     std::vector<::DirectX::XMFLOAT3> m_velocities {}; // velocities of each particle, m_velocities[i] = velocity vector of the ith particle
+    
     std::vector<float> m_densities {}; // stores the calculated density of each particle
+    
+    std::vector<float> m_pressures {}; // stores the calculated pressure of each particle
+    std::vector<::DirectX::XMFLOAT3> m_accelerations {}; // stores the pressure-induced acceleration of each particle
+
     std::size_t m_step_count { 0uz }; // how many steps have run, used to print the density check about once a second
 
     // define boundaries of a box for bouncing
@@ -52,6 +59,12 @@ private:
 
     // works out the density of every particle from its neighbors' positions
     void _compute_densities();
+
+    // calculates the pressure of every particle using its previously calculated density.
+    void _compute_pressures();
+
+    // calculates the pressure-induced acceleration of each particle from its neighbors
+    void _compute_pressure_forces();
 
 };
 

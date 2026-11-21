@@ -24,6 +24,21 @@ namespace
         return coeff * diff * diff * diff;
 
     }
+
+    // returns the magnitude of the spiky kernel gradient based on distance and influence radius
+    // the spikey kernel gradient tells us how strongly a neighboring particle contributes to the pressure force
+    float _spiky_gradient(float distance, float kernel_radius)
+    {
+
+        if (distance >= kernel_radius)
+        {
+            return 0.0f;
+        }
+
+        const float diff { kernel_radius - distance };
+        return (45.0f / (std::numbers::pi_v<float> * std::pow(kernel_radius, 6.0f))) * diff * diff;
+
+    }
     
 }
 
@@ -33,19 +48,26 @@ Simulation::Simulation(std::vector<::DirectX::XMFLOAT4> positions) : m_positions
     m_initial_positions = m_positions;
     m_velocities.resize(m_positions.size());
     m_densities.resize(m_positions.size()); // we'll calculate densities based on its neighbouring particles
-    _compute_densities();
-
-    //
-    std::println("{}", m_densities[0]);
-    std::println("{}", m_densities[555]);
+    m_pressures.resize(m_positions.size());
+    m_accelerations.resize(m_positions.size());
     
+    _compute_densities();
+    _compute_pressures();
+
+    // TEMP: pressure sign check. corner particle 0 should be pushed outward (all three components negative); middle particle 555 should be near zero
+    _compute_pressure_forces();
+    std::println("TEMP density[0] = {:.1f}, pressure[0] = {:.1f}, accel[0] = ({:.1f}, {:.1f}, {:.1f})", m_densities[0], m_pressures[0], m_accelerations[0].x, m_accelerations[0].y, m_accelerations[0].z);
+    std::println("TEMP density[555] = {:.1f}, pressure[555] = {:.1f}, accel[555] = ({:.1f}, {:.1f}, {:.1f})", m_densities[555], m_pressures[555], m_accelerations[555].x, m_accelerations[555].y, m_accelerations[555].z);
+
 }
 
 void Simulation::step(float delta_time)
 {
 
-    // work out how crowded each particle is at its current position
+    // work out how crowded each particle is, the pressure that causes, and the push each particle gets from it
     _compute_densities();
+    _compute_pressures();
+    _compute_pressure_forces();
 
     // the physics runs 120 steps a second, so print the middle particle and the most crowded one about once a second
     if (++m_step_count % 120uz == 0uz)
@@ -61,7 +83,9 @@ void Simulation::step(float delta_time)
         // semi-implicit Euler integration
         auto& position { m_positions[i] };
         auto& velocity { m_velocities[i] };
-        velocity.y += gravity * delta_time; // gravity is acceleration not a multiplier for velocity
+        velocity.x += m_accelerations[i].x * delta_time;
+        velocity.y += (gravity + m_accelerations[i].y) * delta_time; // gravity is acceleration not a multiplier for velocity
+        velocity.z += m_accelerations[i].z * delta_time;
         position.x += velocity.x * delta_time;
         position.y += velocity.y * delta_time;
         position.z += velocity.z * delta_time;
@@ -142,4 +166,60 @@ void Simulation::_compute_densities()
         }
     }
 
+}
+
+void Simulation::_compute_pressures()
+{
+ 
+    for (auto i {0uz}; i < m_positions.size(); ++i)
+    {
+        m_pressures[i] = std::max(0.0f, stiffness * (m_densities[i] - rest_density)); // we dont want particles pullign each other together; only pushing
+    }
+
+}
+
+void Simulation::_compute_pressure_forces()
+{
+    for (auto i {0uz}; i < m_positions.size(); ++i)
+    {
+
+        ::DirectX::XMFLOAT3 force {0.0f, 0.0f, 0.0f};
+        for (auto j {0uz}; j < m_positions.size(); ++j)
+        {
+            if (j == i)
+            {
+                continue;
+            }
+
+            // get a vector pointing from particle j to particle i (d' = x'_i - x'_j)
+            float delta_x { m_positions[i].x - m_positions[j].x };
+            float delta_y { m_positions[i].y - m_positions[j].y };
+            float delta_z { m_positions[i].z - m_positions[j].z };
+
+            float distance_squared { delta_x * delta_x + delta_y * delta_y + delta_z * delta_z };
+            
+            if (distance_squared >= kernel_radius * kernel_radius)
+            {
+                continue;
+            }
+
+            float distance { std::sqrt(distance_squared) };
+
+            // normalize the vector aka turn it into a unit vector
+            ::DirectX::XMFLOAT3 direction { delta_x / distance, delta_y / distance, delta_z / distance };
+
+            // SPH pressure force equation; add this neighbor's pressure force to force
+            // iow calculate how much particle j pushes particle i due to pressure
+            float pressure_term { particle_mass * (m_pressures[i] + m_pressures[j]) / (2.0f * m_densities[j]) * _spiky_gradient(distance, kernel_radius) };
+
+            force.x += pressure_term * direction.x;
+            force.y += pressure_term * direction.y;
+            force.z += pressure_term * direction.z;
+
+        }
+
+        // force -> acceleration (a = F / density)
+        m_accelerations[i] = { force.x / m_densities[i], force.y / m_densities[i], force.z / m_densities[i] };
+
+    }
 }
