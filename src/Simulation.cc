@@ -111,7 +111,7 @@ void Simulation::step(float delta_time)
         auto& position { m_positions[i] };
         auto& velocity { m_velocities[i] };
         velocity.x += m_accelerations[i].x * delta_time;
-        velocity.y += (gravity + m_accelerations[i].y) * delta_time; // gravity is acceleration not a multiplier for velocity
+        velocity.y += (m_settings.gravity + m_accelerations[i].y) * delta_time; // gravity is acceleration not a multiplier for velocity
         velocity.z += m_accelerations[i].z * delta_time;
         position.x += velocity.x * delta_time;
         position.y += velocity.y * delta_time;
@@ -122,38 +122,38 @@ void Simulation::step(float delta_time)
         if (position.x < m_bounds_min.x)
         {
             position.x = m_bounds_min.x;
-            velocity.x *= -m_damping;
+            velocity.x *= -m_settings.damping;
         }
 
         if (position.x > m_bounds_max.x)
         {
             position.x = m_bounds_max.x;
-            velocity.x *= -m_damping;
+            velocity.x *= -m_settings.damping;
         }
 
         if (position.y < m_bounds_min.y)
         {
             position.y = m_bounds_min.y;
-            velocity.y *= -m_damping;
+            velocity.y *= -m_settings.damping;
         }
 
         if (position.y > m_bounds_max.y)
         {
             position.y = m_bounds_max.y;
-            velocity.y *= -m_damping;
+            velocity.y *= -m_settings.damping;
         }
 
         // Z boundaries.
         if (position.z < m_bounds_min.z)
         {
             position.z = m_bounds_min.z;
-            velocity.z *= -m_damping;
+            velocity.z *= -m_settings.damping;
         }
 
         if (position.z > m_bounds_max.z)
         {
             position.z = m_bounds_max.z;
-            velocity.z *= -m_damping;
+            velocity.z *= -m_settings.damping;
         }
 
     }
@@ -165,6 +165,13 @@ void Simulation::reset()
 
     m_positions = m_initial_positions;
     std::ranges::fill(m_velocities, ::DirectX::XMFLOAT3 { 0.0f, 0.0f, 0.0f });
+
+}
+
+Simulation::Settings& Simulation::settings()
+{
+
+    return m_settings;
 
 }
 
@@ -348,7 +355,7 @@ void Simulation::_compute_pressures()
     for (auto i { 0uz }; i < m_positions.size(); ++i)
     {
 
-        m_pressures[i] = std::max(0.0f, stiffness * (m_densities[i] - rest_density)); // we dont want particles pulling each other together; only pushing
+        m_pressures[i] = std::max(0.0f, m_settings.stiffness * (m_densities[i] - rest_density)); // we dont want particles pulling each other together; only pushing
 
     }
 
@@ -443,7 +450,7 @@ void Simulation::_compute_viscosity_forces()
 
             // your turn: add this neighbor's viscosity force to `force`, using viscosity, particle_mass,
             // the velocity DIFFERENCE between j and i (m_velocities[j] - m_velocities[i]), m_densities[j] and `kernel`
-            const float velocity_coefficient { viscosity * particle_mass / m_densities[j] * kernel };
+            const float velocity_coefficient { m_settings.viscosity * particle_mass / m_densities[j] * kernel };
 
             const float velocity_diff_x { m_velocities[j].x - m_velocities[i].x };
             const float velocity_diff_y { m_velocities[j].y - m_velocities[i].y };

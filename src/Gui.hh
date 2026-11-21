@@ -2,6 +2,7 @@
 #define GUI_HH
 
 #include "Graphics.hh"
+#include "Simulation.hh"
 #include "Window.hh"
 
 // owns the Dear ImGui context and its GLFW + Direct3D 11 backends, for on-screen text and controls
@@ -27,8 +28,8 @@ public:
     // shows the current frames per second in a small overlay in the top-right corner
     void drawFps();
 
-    // shows the controls panel in the top-left corner (more sliders and toggles will go here later); returns true on the frame Reset is clicked
-    bool drawControls();
+    // shows the controls panel in the top-left corner with sliders for the simulation settings; returns true on the frame Reset is clicked
+    bool drawControls(Simulation::Settings& settings);
 
     // true while the mouse is over the panel (or dragging it), so the scene should ignore the mouse
     bool wantsMouse() const;

@@ -9,6 +9,17 @@ class Simulation
 {
 public:
 
+    // values that can be changed while the simulation runs, such as from sliders
+    struct Settings
+    {
+
+        float gravity { -9.8f };    // gravity acceleration in m/s^2 (negative = downward)
+        float stiffness { 3.0f };   // how strongly the fluid resists being squeezed
+        float viscosity { 5.0f };   // how strongly neighboring particles drag each other toward the same velocity; higher = thicker, calmer fluid
+        float damping { 0.5f };     // how much speed a particle keeps (reversed) when it bounces off a wall
+
+    };
+
     // takes in a vector of starting positions and sets every velocity & to zero.
     explicit Simulation(std::vector<::DirectX::XMFLOAT4> positions);
     ~Simulation() = default;
@@ -25,6 +36,9 @@ public:
     // puts every particle back at its starting position and stops it moving
     void reset();
 
+    // the live-tunable settings, so a UI can read and change them
+    Settings& settings();
+
     // switches between the grid neighbor search (true) and checking every pair (false); used to compare speed and results
     void setUseGrid(bool use_grid);
 
@@ -33,7 +47,6 @@ public:
 
 private:
     
-    static constexpr float gravity { -9.8f };        // gravity is 9.8 m/s
     static constexpr float kernel_radius { 0.2f };   // maximum distance at which two particles influence each other (SPH smoothing radius)
     
     // each particle's mass; 1.0 kg because particles are spaced 0.1m apart in each dimension, representing 0.001m^3 of water at 1000 kg/m^3
@@ -41,9 +54,7 @@ private:
     
     static constexpr float rest_density { 1000.0f }; // water has a density of 1000 kg per cubed metre
 
-    static constexpr float stiffness { 3.0f }; // how strongly the fluid resists being squeezed; 3.0
 
-    static constexpr float viscosity { 5.0f }; // how strongly neighboring particles drag each other toward the same velocity; higher = thicker, calmer fluid (tune this)
 
     static constexpr float cell_size { kernel_radius }; // width of one grid cell; equal to the kernel radius so every neighbor is in the particle's cell or one of the 26 around it
 
@@ -62,7 +73,7 @@ private:
     DirectX::XMFLOAT3 m_bounds_min { -1.5f, -1.5f, -1.5f };
     DirectX::XMFLOAT3 m_bounds_max {  1.5f,  1.5f,  1.5f };
 
-    float m_damping { 0.5f }; // how much energy a particle loses when bouncing
+    Settings m_settings {}; // the live-tunable values (changed from the controls panel)
 
     // the neighbor search grid: the tank is cut into cells, and particles are sorted by cell
     int m_cells_x { 1 }; // number of grid cells along x

@@ -110,7 +110,7 @@ try
         // restart the simulation when Reset is clicked or R is pressed (once per press)
         const bool r_is_down { window.key(GLFW_KEY_R) };
 
-        if (gui.drawControls() || (r_is_down && !r_was_down))
+        if (gui.drawControls(simulation.settings()) || (r_is_down && !r_was_down))
         {
 
             simulation.reset();
