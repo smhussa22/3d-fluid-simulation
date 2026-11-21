@@ -43,6 +43,8 @@ private:
 
     static constexpr float stiffness { 3.0f }; // how strongly the fluid resists being squeezed; 3.0
 
+    static constexpr float viscosity { 5.0f }; // how strongly neighboring particles drag each other toward the same velocity; higher = thicker, calmer fluid (tune this)
+
     static constexpr float cell_size { kernel_radius }; // width of one grid cell; equal to the kernel radius so every neighbor is in the particle's cell or one of the 26 around it
 
     std::vector<::DirectX::XMFLOAT4> m_positions {};  // positions of each particle; m_positions[i] = position vector of the ith particle
@@ -80,6 +82,9 @@ private:
 
     // calculates the pressure-induced acceleration of each particle from its neighbors
     void _compute_pressure_forces();
+
+    // adds the viscosity-induced acceleration to each particle, from the velocity differences with its neighbors; run after _compute_pressure_forces
+    void _compute_viscosity_forces();
 
     // which grid cell (x, y, z) a position falls in, clamped to the grid so a particle on the tank wall can't index outside it
     ::DirectX::XMINT3 _cell_coords(const ::DirectX::XMFLOAT4& position) const;

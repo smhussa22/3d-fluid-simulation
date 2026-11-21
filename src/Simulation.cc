@@ -39,7 +39,24 @@ namespace
         return (45.0f / (std::numbers::pi_v<float> * std::pow(kernel_radius, 6.0f))) * diff * diff;
 
     }
-    
+
+    // returns the Laplacian of the viscosity kernel for a given distance and influence radius
+    // it tells us how strongly a neighboring particle's velocity difference drags on a particle
+    // pg 5: https://cgl.ethz.ch/Downloads/Publications/Papers/2003/Mue03b/Mue03b.pdf
+    float _viscosity_laplacian(float distance, float kernel_radius)
+    {
+
+        if (distance >= kernel_radius)
+        {
+
+            return 0.0f;
+
+        }
+
+        return (45.0f / (std::numbers::pi_v<float> * std::pow(kernel_radius, 6.0f))) * (kernel_radius - distance);
+
+    }
+
 }
 
 Simulation::Simulation(std::vector<::DirectX::XMFLOAT4> positions) : m_positions { std::move(positions) }
@@ -73,10 +90,11 @@ void Simulation::step(float delta_time)
     // the particles moved last step, so re-sort them into grid cells before searching for neighbors
     _build_grid();
 
-    // work out how crowded each particle is, the pressure that causes, and the push each particle gets from it
+    // work out how crowded each particle is, the pressure that causes, and the pushes and drags each particle gets from its neighbors
     _compute_densities();
     _compute_pressures();
     _compute_pressure_forces();
+    _compute_viscosity_forces();
 
     // the physics runs 480 steps a second, so print the middle particle and the most crowded one about once a second
     if (++m_step_count % 480uz == 0uz)
@@ -385,6 +403,62 @@ void Simulation::_compute_pressure_forces()
 
         // force -> acceleration (a = F / density)
         m_accelerations[i] = { force.x / m_densities[i], force.y / m_densities[i], force.z / m_densities[i] };
+
+    }
+
+}
+
+// adds the viscosity acceleration to each particle (pressure forces must already have been computed this step)
+void Simulation::_compute_viscosity_forces()
+{
+
+    for (auto i { 0uz }; i < m_positions.size(); ++i)
+    {
+
+        ::DirectX::XMFLOAT3 force { 0.0f, 0.0f, 0.0f };
+
+        _for_each_neighbor(i, [&](std::size_t j)
+        {
+
+            if (j == i)
+            {
+
+                return;
+
+            }
+
+            const float delta_x { m_positions[i].x - m_positions[j].x };
+            const float delta_y { m_positions[i].y - m_positions[j].y };
+            const float delta_z { m_positions[i].z - m_positions[j].z };
+            const float distance { std::sqrt(delta_x * delta_x + delta_y * delta_y + delta_z * delta_z) };
+
+            if (distance >= kernel_radius)
+            {
+
+                return;
+
+            }
+
+            const float kernel { _viscosity_laplacian(distance, kernel_radius) };
+
+            // your turn: add this neighbor's viscosity force to `force`, using viscosity, particle_mass,
+            // the velocity DIFFERENCE between j and i (m_velocities[j] - m_velocities[i]), m_densities[j] and `kernel`
+            const float velocity_coefficient { viscosity * particle_mass / m_densities[j] * kernel };
+
+            const float velocity_diff_x { m_velocities[j].x - m_velocities[i].x };
+            const float velocity_diff_y { m_velocities[j].y - m_velocities[i].y };
+            const float velocity_diff_z { m_velocities[j].z - m_velocities[i].z };
+
+            force.x += velocity_coefficient * velocity_diff_x;
+            force.y += velocity_coefficient * velocity_diff_y;
+            force.z += velocity_coefficient * velocity_diff_z;
+
+        });
+
+        // force -> acceleration (a = F / density), added on top of the pressure acceleration
+        m_accelerations[i].x += force.x / m_densities[i];
+        m_accelerations[i].y += force.y / m_densities[i];
+        m_accelerations[i].z += force.z / m_densities[i];
 
     }
 
