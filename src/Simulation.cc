@@ -50,7 +50,17 @@ Simulation::Simulation(std::vector<::DirectX::XMFLOAT4> positions) : m_positions
     m_densities.resize(m_positions.size()); // we'll calculate densities based on its neighbouring particles
     m_pressures.resize(m_positions.size());
     m_accelerations.resize(m_positions.size());
-    
+
+    // size the neighbor search grid to fit the tank
+    m_cells_x = std::max(1, static_cast<int>(std::ceil((m_bounds_max.x - m_bounds_min.x) / cell_size)));
+    m_cells_y = std::max(1, static_cast<int>(std::ceil((m_bounds_max.y - m_bounds_min.y) / cell_size)));
+    m_cells_z = std::max(1, static_cast<int>(std::ceil((m_bounds_max.z - m_bounds_min.z) / cell_size)));
+    m_cell_count = static_cast<std::size_t>(m_cells_x) * static_cast<std::size_t>(m_cells_y) * static_cast<std::size_t>(m_cells_z);
+    m_particle_cell.resize(m_positions.size());
+    m_cell_start.resize(m_cell_count + 1uz);
+    m_sorted_indices.resize(m_positions.size());
+
+    _build_grid();
     _compute_densities();
     _compute_pressures();
 
@@ -59,6 +69,9 @@ Simulation::Simulation(std::vector<::DirectX::XMFLOAT4> positions) : m_positions
 
 void Simulation::step(float delta_time)
 {
+
+    // the particles moved last step, so re-sort them into grid cells before searching for neighbors
+    _build_grid();
 
     // work out how crowded each particle is, the pressure that causes, and the push each particle gets from it
     _compute_densities();
@@ -137,85 +150,242 @@ void Simulation::reset()
 
 }
 
+void Simulation::setUseGrid(bool use_grid)
+{
+
+    m_use_grid = use_grid;
+
+}
+
 // current particle positions (w = 1), laid out so they can be uploaded straight to the GPU buffer
 const std::vector<::DirectX::XMFLOAT4>& Simulation::positions() const
 {
     return m_positions;
 }
 
+
+// which grid cell (x, y, z) a position falls in
+::DirectX::XMINT3 Simulation::_cell_coords(const ::DirectX::XMFLOAT4& position) const
+{
+
+    const int x { static_cast<int>(std::floor((position.x - m_bounds_min.x) / cell_size)) };
+    const int y { static_cast<int>(std::floor((position.y - m_bounds_min.y) / cell_size)) };
+    const int z { static_cast<int>(std::floor((position.z - m_bounds_min.z) / cell_size)) };
+
+    return { std::clamp(x, 0, m_cells_x - 1), std::clamp(y, 0, m_cells_y - 1), std::clamp(z, 0, m_cells_z - 1) };
+
+}
+
+// sorts the particles into grid cells with a counting sort
+void Simulation::_build_grid()
+{
+
+    // work out which cell each particle is in
+    for (auto i { 0uz }; i < m_positions.size(); ++i)
+    {
+
+        const ::DirectX::XMINT3 cell { _cell_coords(m_positions[i]) };
+        m_particle_cell[i] = static_cast<std::size_t>(cell.x) + static_cast<std::size_t>(cell.y) * static_cast<std::size_t>(m_cells_x) + static_cast<std::size_t>(cell.z) * static_cast<std::size_t>(m_cells_x) * static_cast<std::size_t>(m_cells_y);
+
+    }
+
+    // count how many particles are in each cell (stored one slot ahead so the running total below lines up)
+    std::ranges::fill(m_cell_start, 0uz);
+
+    for (auto i { 0uz }; i < m_positions.size(); ++i)
+    {
+
+        ++m_cell_start[m_particle_cell[i] + 1uz];
+
+    }
+
+    // running total: m_cell_start[c] now holds how many particles are in all earlier cells, i.e. where cell c begins
+    for (auto c { 1uz }; c <= m_cell_count; ++c)
+    {
+
+        m_cell_start[c] += m_cell_start[c - 1uz];
+
+    }
+
+    // drop each particle into the next free slot of its cell
+    std::vector<std::size_t> next_slot(m_cell_start.begin(), m_cell_start.end() - 1);
+
+    for (auto i { 0uz }; i < m_positions.size(); ++i)
+    {
+
+        const std::size_t cell { m_particle_cell[i] };
+        m_sorted_indices[next_slot[cell]] = i;
+        ++next_slot[cell];
+
+    }
+
+}
+
+// calls function(j) for every particle j that could be near particle i
+template <typename Function>
+void Simulation::_for_each_neighbor(std::size_t i, Function&& function) const
+{
+
+    // without the grid, every particle is a candidate
+    if (!m_use_grid)
+    {
+
+        for (auto j { 0uz }; j < m_positions.size(); ++j)
+        {
+
+            function(j);
+
+        }
+
+        return;
+
+    }
+
+    // with the grid, only the particle's own cell and the 26 around it can hold neighbors
+    const ::DirectX::XMINT3 center { _cell_coords(m_positions[i]) };
+
+    for (int dz { -1 }; dz <= 1; ++dz)
+    {
+
+        const int z { center.z + dz };
+
+        if (z < 0 || z >= m_cells_z)
+        {
+
+            continue;
+
+        }
+
+        for (int dy { -1 }; dy <= 1; ++dy)
+        {
+
+            const int y { center.y + dy };
+
+            if (y < 0 || y >= m_cells_y)
+            {
+
+                continue;
+
+            }
+
+            for (int dx { -1 }; dx <= 1; ++dx)
+            {
+
+                const int x { center.x + dx };
+
+                if (x < 0 || x >= m_cells_x)
+                {
+
+                    continue;
+
+                }
+
+                const std::size_t cell { static_cast<std::size_t>(x) + static_cast<std::size_t>(y) * static_cast<std::size_t>(m_cells_x) + static_cast<std::size_t>(z) * static_cast<std::size_t>(m_cells_x) * static_cast<std::size_t>(m_cells_y) };
+
+                for (auto k { m_cell_start[cell] }; k < m_cell_start[cell + 1uz]; ++k)
+                {
+
+                    function(m_sorted_indices[k]);
+
+                }
+
+            }
+
+        }
+
+    }
+
+}
+
 // works out the density of every particle from its neighbors' positions
 void Simulation::_compute_densities()
 {
-    for (auto i {0uz}; i < m_positions.size(); ++i)
+
+    for (auto i { 0uz }; i < m_positions.size(); ++i)
     {
-        m_densities[i] = 0.0f;
-        for (auto j {0uz}; j < m_positions.size(); ++j)
+
+        float density { 0.0f };
+
+        _for_each_neighbor(i, [&](std::size_t j)
         {
 
-            float delta_x { m_positions[i].x - m_positions[j].x };
-            float delta_y { m_positions[i].y - m_positions[j].y };
-            float delta_z { m_positions[i].z - m_positions[j].z };
-            float distance_squared { delta_x * delta_x + delta_y * delta_y + delta_z * delta_z };
+            const float delta_x { m_positions[i].x - m_positions[j].x };
+            const float delta_y { m_positions[i].y - m_positions[j].y };
+            const float delta_z { m_positions[i].z - m_positions[j].z };
+            const float distance_squared { delta_x * delta_x + delta_y * delta_y + delta_z * delta_z };
 
-            m_densities[i] += particle_mass * _poly6(distance_squared, kernel_radius); 
+            density += particle_mass * _poly6(distance_squared, kernel_radius);
 
-        }
+        });
+
+        m_densities[i] = density;
+
     }
 
 }
 
 void Simulation::_compute_pressures()
 {
- 
-    for (auto i {0uz}; i < m_positions.size(); ++i)
+
+    for (auto i { 0uz }; i < m_positions.size(); ++i)
     {
-        m_pressures[i] = std::max(0.0f, stiffness * (m_densities[i] - rest_density)); // we dont want particles pullign each other together; only pushing
+
+        m_pressures[i] = std::max(0.0f, stiffness * (m_densities[i] - rest_density)); // we dont want particles pulling each other together; only pushing
+
     }
 
 }
 
 void Simulation::_compute_pressure_forces()
 {
-    for (auto i {0uz}; i < m_positions.size(); ++i)
+
+    for (auto i { 0uz }; i < m_positions.size(); ++i)
     {
 
-        ::DirectX::XMFLOAT3 force {0.0f, 0.0f, 0.0f};
-        for (auto j {0uz}; j < m_positions.size(); ++j)
+        ::DirectX::XMFLOAT3 force { 0.0f, 0.0f, 0.0f };
+
+        _for_each_neighbor(i, [&](std::size_t j)
         {
+
             if (j == i)
             {
-                continue;
+
+                return;
+
             }
 
             // get a vector pointing from particle j to particle i (d' = x'_i - x'_j)
-            float delta_x { m_positions[i].x - m_positions[j].x };
-            float delta_y { m_positions[i].y - m_positions[j].y };
-            float delta_z { m_positions[i].z - m_positions[j].z };
+            const float delta_x { m_positions[i].x - m_positions[j].x };
+            const float delta_y { m_positions[i].y - m_positions[j].y };
+            const float delta_z { m_positions[i].z - m_positions[j].z };
 
-            float distance_squared { delta_x * delta_x + delta_y * delta_y + delta_z * delta_z };
-            
+            const float distance_squared { delta_x * delta_x + delta_y * delta_y + delta_z * delta_z };
+
             if (distance_squared >= kernel_radius * kernel_radius || distance_squared == 0.0f)
             {
-                continue;
+
+                return;
+
             }
 
-            float distance { std::sqrt(distance_squared) };
+            const float distance { std::sqrt(distance_squared) };
 
             // normalize the vector aka turn it into a unit vector
-            ::DirectX::XMFLOAT3 direction { delta_x / distance, delta_y / distance, delta_z / distance };
+            const ::DirectX::XMFLOAT3 direction { delta_x / distance, delta_y / distance, delta_z / distance };
 
             // SPH pressure force equation; add this neighbor's pressure force to force
             // iow calculate how much particle j pushes particle i due to pressure
-            float pressure_term { particle_mass * (m_pressures[i] + m_pressures[j]) / (2.0f * m_densities[j]) * _spiky_gradient(distance, kernel_radius) };
+            const float pressure_term { particle_mass * (m_pressures[i] + m_pressures[j]) / (2.0f * m_densities[j]) * _spiky_gradient(distance, kernel_radius) };
 
             force.x += pressure_term * direction.x;
             force.y += pressure_term * direction.y;
             force.z += pressure_term * direction.z;
 
-        }
+        });
 
         // force -> acceleration (a = F / density)
         m_accelerations[i] = { force.x / m_densities[i], force.y / m_densities[i], force.z / m_densities[i] };
 
     }
+
 }

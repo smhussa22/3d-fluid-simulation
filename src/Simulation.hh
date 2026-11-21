@@ -25,6 +25,9 @@ public:
     // puts every particle back at its starting position and stops it moving
     void reset();
 
+    // switches between the grid neighbor search (true) and checking every pair (false); used to compare speed and results
+    void setUseGrid(bool use_grid);
+
     // current particle positions (w = 1), laid out so they can be uploaded straight to the GPU buffer
     const std::vector<::DirectX::XMFLOAT4>& positions() const;
 
@@ -39,6 +42,8 @@ private:
     static constexpr float rest_density { 1000.0f }; // water has a density of 1000 kg per cubed metre
 
     static constexpr float stiffness { 3.0f }; // how strongly the fluid resists being squeezed; 3.0
+
+    static constexpr float cell_size { kernel_radius }; // width of one grid cell; equal to the kernel radius so every neighbor is in the particle's cell or one of the 26 around it
 
     std::vector<::DirectX::XMFLOAT4> m_positions {};  // positions of each particle; m_positions[i] = position vector of the ith particle
     std::vector<::DirectX::XMFLOAT4> m_initial_positions {}; // the starting positions, restored by reset()
@@ -57,6 +62,16 @@ private:
 
     float m_damping { 0.5f }; // how much energy a particle loses when bouncing
 
+    // the neighbor search grid: the tank is cut into cells, and particles are sorted by cell
+    int m_cells_x { 1 }; // number of grid cells along x
+    int m_cells_y { 1 }; // number of grid cells along y
+    int m_cells_z { 1 }; // number of grid cells along z
+    std::size_t m_cell_count { 1uz }; // total number of grid cells
+    std::vector<std::size_t> m_particle_cell {}; // m_particle_cell[i] = index of the cell particle i is in
+    std::vector<std::size_t> m_cell_start {};    // m_cell_start[c] = where cell c's particles begin in m_sorted_indices (one extra entry marks the end)
+    std::vector<std::size_t> m_sorted_indices {}; // particle indices grouped by cell
+    bool m_use_grid { true }; // whether neighbor searches use the grid or check every pair
+
     // works out the density of every particle from its neighbors' positions
     void _compute_densities();
 
@@ -65,6 +80,16 @@ private:
 
     // calculates the pressure-induced acceleration of each particle from its neighbors
     void _compute_pressure_forces();
+
+    // which grid cell (x, y, z) a position falls in, clamped to the grid so a particle on the tank wall can't index outside it
+    ::DirectX::XMINT3 _cell_coords(const ::DirectX::XMFLOAT4& position) const;
+
+    // sorts the particles into grid cells; must be redone whenever the particles move
+    void _build_grid();
+
+    // calls function(j) for every particle j that could be within the kernel radius of particle i (including i itself)
+    template <typename Function>
+    void _for_each_neighbor(std::size_t i, Function&& function) const;
 
 };
 
