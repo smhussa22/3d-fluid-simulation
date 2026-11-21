@@ -28,6 +28,8 @@ add_library(imgui STATIC
 target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
 target_link_libraries(imgui PUBLIC glfw d3d11 dxgi d3dcompiler)
 
+# MSVC's default OpenMP is too old for unsigned loop counters; the LLVM runtime supports them
+set(OpenMP_RUNTIME_MSVC llvm)
 find_package(OpenMP REQUIRED)
 
 add_executable(3d_fluid_simulation src/3d_fluid_simulation.cc src/Window.cc src/Graphics.cc src/Buffer.cc src/Shader.cc src/RenderShader.cc src/ConstantBuffer.cc src/Camera.cc src/Gui.cc src/Simulation.cc)

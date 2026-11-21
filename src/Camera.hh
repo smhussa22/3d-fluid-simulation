@@ -34,7 +34,7 @@ private:
     ::DirectX::XMFLOAT3 m_target { 0, 0, 0 }; // the point in 3D space the camera looks at
     float m_yaw { 0.0f };                     // horizontal rotation angle around the target
     float m_pitch { 0.4f };                   // vertical rotation angle around the target
-    float m_distance { 5.0f };                // distance between the camera and the target
+    float m_distance { 2.5f };                // distance between the camera and the target
 
     // need these two to calculate how far the mouse has moved while dragging the camera
     double m_last_x { 0.0 };                  // stores mouse cursor's x from the last frame, for measuring drag

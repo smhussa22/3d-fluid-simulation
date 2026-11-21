@@ -14,7 +14,7 @@ public:
     {
 
         float gravity { -9.8f };    // gravity acceleration in m/s^2 (negative = downward)
-        float stiffness { 3.0f };   // how strongly the fluid resists being squeezed
+        float stiffness { 150.0f };   // how strongly the fluid resists being squeezed
         float viscosity { 5.0f };   // how strongly neighboring particles drag each other toward the same velocity; higher = thicker, calmer fluid
         float damping { 0.5f };     // how much speed a particle keeps (reversed) when it bounces off a wall
 
@@ -70,8 +70,8 @@ private:
     std::size_t m_step_count { 0uz }; // how many steps have run, used to print the density check about once a second
 
     // define boundaries of a box for bouncing
-    DirectX::XMFLOAT3 m_bounds_min { -1.5f, -1.5f, -1.5f };
-    DirectX::XMFLOAT3 m_bounds_max {  1.5f,  1.5f,  1.5f };
+    DirectX::XMFLOAT3 m_bounds_min { -0.6f, -0.6f, -0.6f };
+    DirectX::XMFLOAT3 m_bounds_max {  0.6f,  0.6f,  0.6f };
 
     Settings m_settings {}; // the live-tunable values (changed from the controls panel)
 

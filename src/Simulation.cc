@@ -104,6 +104,7 @@ void Simulation::step(float delta_time)
 
     }
 
+    #pragma omp parallel for
     for (auto i {0uz}; i < m_positions.size(); ++i)
     {
 
@@ -326,6 +327,8 @@ void Simulation::_for_each_neighbor(std::size_t i, Function&& function) const
 void Simulation::_compute_densities()
 {
 
+    // each particle only writes its own results, so the loop can be split across threads
+    #pragma omp parallel for
     for (auto i { 0uz }; i < m_positions.size(); ++i)
     {
 
@@ -352,6 +355,8 @@ void Simulation::_compute_densities()
 void Simulation::_compute_pressures()
 {
 
+    // each particle only writes its own results, so the loop can be split across threads
+    #pragma omp parallel for
     for (auto i { 0uz }; i < m_positions.size(); ++i)
     {
 
@@ -364,6 +369,8 @@ void Simulation::_compute_pressures()
 void Simulation::_compute_pressure_forces()
 {
 
+    // each particle only writes its own results, so the loop can be split across threads
+    #pragma omp parallel for
     for (auto i { 0uz }; i < m_positions.size(); ++i)
     {
 
@@ -419,6 +426,8 @@ void Simulation::_compute_pressure_forces()
 void Simulation::_compute_viscosity_forces()
 {
 
+    // each particle only writes its own results, so the loop can be split across threads
+    #pragma omp parallel for
     for (auto i { 0uz }; i < m_positions.size(); ++i)
     {
 

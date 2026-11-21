@@ -65,7 +65,7 @@ bool Gui::drawControls(Simulation::Settings& settings)
 
         // sliders for the physics settings (log scale so small values are easy to hit)
         ::ImGui::SliderFloat("Viscosity", &settings.viscosity, 0.0f, 100.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
-        ::ImGui::SliderFloat("Stiffness", &settings.stiffness, 0.0f, 30.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
+        ::ImGui::SliderFloat("Stiffness", &settings.stiffness, 0.0f, 500.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
         ::ImGui::SliderFloat("Damping", &settings.damping, 0.0f, 1.0f, "%.2f");
         ::ImGui::SliderFloat("Gravity", &settings.gravity, -20.0f, 0.0f, "%.1f");
 

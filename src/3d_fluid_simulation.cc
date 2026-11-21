@@ -30,11 +30,11 @@ try
     std::vector<::DirectX::XMFLOAT4> points {};
 
     // yikes
-    for (int x {-5}; x < 5; ++x)
+    for (int x {0}; x < 10; ++x)
     {
-        for (int y {-5}; y < 5; ++y)
+        for (int y {0}; y < 10; ++y)
         {
-            for (int z {-5}; z < 5; ++z)
+            for (int z {0}; z < 10; ++z)
             {
                 points.emplace_back(x * 0.1f, y * 0.1f, z * 0.1f, 1.0f);
             }
