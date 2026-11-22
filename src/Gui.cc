@@ -71,6 +71,7 @@ bool Gui::drawControls(Simulation::Settings& settings, ViewOptions& view)
 
         // the depth texture and how it is smoothed
         ::ImGui::Checkbox("Show depth texture", &view.show_depth);
+        ::ImGui::Checkbox("Show normals", &view.show_normals);
         ::ImGui::Checkbox("Blur depth", &view.blur_enabled);
         ::ImGui::SliderInt("Blur radius", &view.blur_radius, 1, 32);
         ::ImGui::SliderFloat("Blur spatial sigma", &view.blur_spatial_sigma, 0.5f, 16.0f, "%.1f");

@@ -16,6 +16,7 @@ public:
     {
 
         bool show_depth { false };           // draw the depth texture over the scene (debug view)
+        bool show_normals { false };         // draw the surface normals as colors over the scene (debug view; takes priority over the depth view)
         bool blur_enabled { true };          // smooth the depth texture before showing or using it
         int blur_radius { 12 };              // how many pixels the blur reaches out on each side
         float blur_spatial_sigma { 6.0f };   // how quickly the blur weight falls off with pixel distance

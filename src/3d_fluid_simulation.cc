@@ -136,6 +136,25 @@ try
 
     ConstantBuffer blur_params_buffer { graphics, sizeof(BlurParams) };
 
+    // the normals: a texture of surface directions made from the smoothed depth, and the numbers the shader needs to turn a pixel and its depth back into a 3D position
+    RenderTarget normal_target { graphics, window.width(), window.height(), DXGI_FORMAT_R16G16B16A16_FLOAT };
+    RenderShader normals_shader { graphics, L"shaders/normals.hlsl" };
+    RenderShader show_normals_shader { graphics, L"shaders/show_normals.hlsl" };
+
+    struct NormalParams
+    {
+
+        float tan_half_fov[2];   // how far the view spreads sideways (x, with aspect) and upward (y) per meter of distance
+        float screen_size[2];    // the window size in pixels
+
+    };
+
+    const float tan_half_fov_y { std::tan(::DirectX::XMConvertToRadians(Camera::fov_degrees) * 0.5f) };
+    const float aspect { static_cast<float>(window.width()) / static_cast<float>(window.height()) };
+    const NormalParams normal_params { { tan_half_fov_y * aspect, tan_half_fov_y }, { static_cast<float>(window.width()), static_cast<float>(window.height()) } };
+    ConstantBuffer normal_params_buffer { graphics, sizeof(NormalParams) };
+    normal_params_buffer.write(graphics, &normal_params);
+
     // one blur pass: read `from`, write the smoothed result into `to`, looking along (x, y)
     const auto blur_pass = [&](const RenderTarget& from, RenderTarget& to, float x, float y)
     {
@@ -161,6 +180,13 @@ try
         {
 
             view.show_depth = true;
+
+        }
+
+        if (std::string_view { argv[i] } == "--show-normals")
+        {
+
+            view.show_normals = true;
 
         }
 
@@ -287,7 +313,7 @@ try
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
         // depth pass (only when the debug view is on): draw the spheres into the depth texture, then go back to drawing into the window with a fresh depth buffer
-        if (view.show_depth)
+        if (view.show_depth || view.show_normals)
         {
 
             depth_target.clear(graphics, 0.0f, 0.0f, 0.0f, 0.0f);
@@ -306,6 +332,18 @@ try
 
             }
 
+            // normals: read the smoothed depth (or the raw depth if blurring is off) and write each pixel's surface direction
+            ::ID3D11ShaderResourceView* depth_for_normals { view.blur_enabled ? smooth_target.shader_resource_view() : depth_target.shader_resource_view() };
+            normals_shader.use(graphics);
+            normal_params_buffer.bind_pixel(graphics, 3u);
+            graphics.set_render_target(normal_target.render_target_view(), false);
+            graphics.context()->PSSetShaderResources(0u, 1u, &depth_for_normals);
+            graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            graphics.context()->Draw(3u, 0u);
+
+            ::ID3D11ShaderResourceView* no_depth { nullptr };
+            graphics.context()->PSSetShaderResources(0u, 1u, &no_depth);
+
             graphics.bind_back_buffer();
             graphics.clear_depth();
             graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -323,7 +361,20 @@ try
         graphics.context()->Draw(24u, 0u);
 
         // debug view: cover the window with the depth texture as grayscale bands, then let go of the texture so the next depth pass can draw into it again
-        if (view.show_depth)
+        if (view.show_normals)
+        {
+
+            ::ID3D11ShaderResourceView* normal_view { normal_target.shader_resource_view() };
+            show_normals_shader.use(graphics);
+            graphics.context()->PSSetShaderResources(0u, 1u, &normal_view);
+            graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            graphics.context()->Draw(3u, 0u);
+
+            ::ID3D11ShaderResourceView* no_normals { nullptr };
+            graphics.context()->PSSetShaderResources(0u, 1u, &no_normals);
+
+        }
+        else if (view.show_depth)
         {
 
             ::ID3D11ShaderResourceView* depth_view { view.blur_enabled ? smooth_target.shader_resource_view() : depth_target.shader_resource_view() };

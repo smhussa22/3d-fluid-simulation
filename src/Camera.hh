@@ -25,6 +25,9 @@ public:
     // reads the mouse from the window and updates yaw, pitch and distance (call once per frame)
     void update(Window& window);
 
+    // the camera's vertical field of view in degrees (the normals shader needs the same number to undo the projection)
+    static constexpr float fov_degrees { 60.0f };
+
     // everything the particle shaders need to know about the camera, laid out to match the cbuffer in particles.hlsl
     struct ShaderData
     {
