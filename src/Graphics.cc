@@ -106,10 +106,10 @@ void Graphics::beginFrame(float r, float g, float b, float a)
 
 }
 
-void Graphics::set_render_target(::ID3D11RenderTargetView* render_target)
+void Graphics::set_render_target(::ID3D11RenderTargetView* render_target, bool with_depth)
 {
 
-    m_context->OMSetRenderTargets(1u, &render_target, m_dsv.Get());
+    m_context->OMSetRenderTargets(1u, &render_target, with_depth ? m_dsv.Get() : nullptr);
 
 }
 

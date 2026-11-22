@@ -116,7 +116,43 @@ try
     RenderTarget depth_target { graphics, window.width(), window.height(), DXGI_FORMAT_R32_FLOAT };
     RenderShader depth_shader { graphics, L"shaders/particle_depth.hlsl" };
     RenderShader show_depth_shader { graphics, L"shaders/show_depth.hlsl" };
-    bool show_depth { false };
+    Gui::ViewOptions view {};
+
+    // the blur: two more depth textures (the first pass writes into the second, the second pass writes the smoothed result into the third), and its settings
+    RenderTarget blur_target { graphics, window.width(), window.height(), DXGI_FORMAT_R32_FLOAT };
+    RenderTarget smooth_target { graphics, window.width(), window.height(), DXGI_FORMAT_R32_FLOAT };
+    RenderShader blur_shader { graphics, L"shaders/blur_depth.hlsl" };
+
+    struct BlurParams
+    {
+
+        float direction[2];     // (1, 0) blurs along x, (0, 1) along y
+        int radius;             // pixels to reach out on each side
+        float spatial_sigma;    // weight falloff with pixel distance
+        float depth_sigma;      // weight falloff with depth difference, in meters
+        float padding[3];       // fills the second 16 bytes
+
+    };
+
+    ConstantBuffer blur_params_buffer { graphics, sizeof(BlurParams) };
+
+    // one blur pass: read `from`, write the smoothed result into `to`, looking along (x, y)
+    const auto blur_pass = [&](const RenderTarget& from, RenderTarget& to, float x, float y)
+    {
+
+        const BlurParams params { { x, y }, view.blur_radius, view.blur_spatial_sigma, view.blur_depth_sigma, { 0.0f, 0.0f, 0.0f } };
+        blur_params_buffer.write(graphics, &params);
+        graphics.set_render_target(to.render_target_view(), false);
+
+        ::ID3D11ShaderResourceView* source { from.shader_resource_view() };
+        graphics.context()->PSSetShaderResources(0u, 1u, &source);
+        graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        graphics.context()->Draw(3u, 0u);
+
+        ::ID3D11ShaderResourceView* no_source { nullptr };
+        graphics.context()->PSSetShaderResources(0u, 1u, &no_source);
+
+    };
 
     for (int i { 1 }; i < argc; ++i)
     {
@@ -124,7 +160,14 @@ try
         if (std::string_view { argv[i] } == "--show-depth")
         {
 
-            show_depth = true;
+            view.show_depth = true;
+
+        }
+
+        if (std::string_view { argv[i] } == "--no-blur")
+        {
+
+            view.blur_enabled = false;
 
         }
 
@@ -224,7 +267,7 @@ try
         // restart the simulation when Reset is clicked or R is pressed (once per press)
         const bool r_is_down { window.key(GLFW_KEY_R) };
 
-        if (gui.drawControls(simulation.settings(), show_depth) || (r_is_down && !r_was_down))
+        if (gui.drawControls(simulation.settings(), view) || (r_is_down && !r_was_down))
         {
 
             simulation.reset(graphics);
@@ -244,7 +287,7 @@ try
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
         // depth pass (only when the debug view is on): draw the spheres into the depth texture, then go back to drawing into the window with a fresh depth buffer
-        if (show_depth)
+        if (view.show_depth)
         {
 
             depth_target.clear(graphics, 0.0f, 0.0f, 0.0f, 0.0f);
@@ -252,8 +295,20 @@ try
             graphics.clear_depth();
             depth_shader.use(graphics);
             graphics.context()->DrawInstanced(4u, static_cast<::UINT>(particle_count), 0u, 0u);
+            // smooth the depth: blur along x into the second texture, then along y into the third
+            if (view.blur_enabled)
+            {
+
+                blur_shader.use(graphics);
+                blur_params_buffer.bind_pixel(graphics, 3u);
+                blur_pass(depth_target, blur_target, 1.0f, 0.0f);
+                blur_pass(blur_target, smooth_target, 0.0f, 1.0f);
+
+            }
+
             graphics.bind_back_buffer();
             graphics.clear_depth();
+            graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
         }
 
@@ -268,10 +323,10 @@ try
         graphics.context()->Draw(24u, 0u);
 
         // debug view: cover the window with the depth texture as grayscale bands, then let go of the texture so the next depth pass can draw into it again
-        if (show_depth)
+        if (view.show_depth)
         {
 
-            ::ID3D11ShaderResourceView* depth_view { depth_target.shader_resource_view() };
+            ::ID3D11ShaderResourceView* depth_view { view.blur_enabled ? smooth_target.shader_resource_view() : depth_target.shader_resource_view() };
             show_depth_shader.use(graphics);
             graphics.context()->PSSetShaderResources(0u, 1u, &depth_view);
             graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

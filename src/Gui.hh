@@ -11,6 +11,18 @@ class Gui
 
 public:
 
+    // what to show and how the depth smoothing is set up (changed from the controls panel)
+    struct ViewOptions
+    {
+
+        bool show_depth { false };           // draw the depth texture over the scene (debug view)
+        bool blur_enabled { true };          // smooth the depth texture before showing or using it
+        int blur_radius { 12 };              // how many pixels the blur reaches out on each side
+        float blur_spatial_sigma { 6.0f };   // how quickly the blur weight falls off with pixel distance
+        float blur_depth_sigma { 0.1f };     // how quickly the blur weight falls off with depth difference, in meters
+
+    };
+
     // creates the ImGui context and hooks it up to the window (input) and the Direct3D device (drawing)
     Gui(const Window& window, const Graphics& graphics);
 
@@ -29,7 +41,7 @@ public:
     void drawFps();
 
     // shows the controls panel in the top-left corner with sliders for the simulation settings; returns true on the frame Reset is clicked
-    bool drawControls(Simulation::Settings& settings, bool& show_depth);
+    bool drawControls(Simulation::Settings& settings, ViewOptions& view);
 
     // true while the mouse is over the panel (or dragging it), so the scene should ignore the mouse
     bool wantsMouse() const;

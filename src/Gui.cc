@@ -54,7 +54,7 @@ void Gui::drawFps()
 
 }
 
-bool Gui::drawControls(Simulation::Settings& settings, bool& show_depth)
+bool Gui::drawControls(Simulation::Settings& settings, ViewOptions& view)
 {
 
     bool reset_clicked { false };
@@ -69,7 +69,12 @@ bool Gui::drawControls(Simulation::Settings& settings, bool& show_depth)
         ::ImGui::SliderFloat("Damping", &settings.damping, 0.0f, 1.0f, "%.2f");
         ::ImGui::SliderFloat("Gravity", &settings.gravity, -20.0f, 0.0f, "%.1f");
 
-        ::ImGui::Checkbox("Show depth texture", &show_depth);
+        // the depth texture and how it is smoothed
+        ::ImGui::Checkbox("Show depth texture", &view.show_depth);
+        ::ImGui::Checkbox("Blur depth", &view.blur_enabled);
+        ::ImGui::SliderInt("Blur radius", &view.blur_radius, 1, 32);
+        ::ImGui::SliderFloat("Blur spatial sigma", &view.blur_spatial_sigma, 0.5f, 16.0f, "%.1f");
+        ::ImGui::SliderFloat("Blur depth sigma", &view.blur_depth_sigma, 0.005f, 0.5f, "%.3f", ImGuiSliderFlags_Logarithmic);
 
         if (::ImGui::Button("Reset (R)"))
         {

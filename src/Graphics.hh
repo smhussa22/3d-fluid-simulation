@@ -25,8 +25,8 @@ public:
     // binds the back buffer + depth buffer, clears them to the given color, and sets the full-window viewport
     void beginFrame(float r, float g, float b, float a);
 
-    // draws into the given texture (together with the shared depth buffer) instead of the window, until bind_back_buffer() is called
-    void set_render_target(::ID3D11RenderTargetView* render_target);
+    // draws into the given texture instead of the window, until bind_back_buffer() is called; with_depth also uses the shared depth buffer (full-screen image passes turn it off)
+    void set_render_target(::ID3D11RenderTargetView* render_target, bool with_depth = true);
 
     // goes back to drawing into the window
     void bind_back_buffer();
