@@ -8,8 +8,10 @@
 #include "Gui.hh"
 #include "Benchmark.hh"
 #include "GpuSimulation.hh"
+#include "Scenario.hh"
 
 #include <algorithm>
+#include <cmath>
 #include <exception>
 #include <print>
 #include <string_view>
@@ -38,23 +40,61 @@ try
 
     }
 
-    std::vector<::DirectX::XMFLOAT4> points {};
+    // "--particles N" fills a tank with a cube of about N particles (n x n x n), dropped from a little above the floor; with no argument the small default block is used
+    int requested_particles { 0 };
 
-    // yikes
-    for (int x {0}; x < 10; ++x)
+    for (int i { 1 }; i + 1 < argc; ++i)
     {
-        for (int y {0}; y < 10; ++y)
+
+        if (std::string_view { argv[i] } == "--particles")
         {
-            for (int z {0}; z < 10; ++z)
-            {
-                points.emplace_back(-0.45f + x * 0.1f, -0.45f + y * 0.1f, -0.45f + z * 0.1f, 1.0f);
-            }
+
+            requested_particles = std::stoi(argv[i + 1]);
+
         }
+
+    }
+
+    std::vector<::DirectX::XMFLOAT4> points {};
+    ::DirectX::XMFLOAT3 bounds_min { -0.6f, -0.6f, -0.6f };
+    ::DirectX::XMFLOAT3 bounds_max { 0.6f, 0.6f, 0.6f };
+
+    if (requested_particles > 0)
+    {
+
+        const int side { std::max(1, static_cast<int>(std::lround(std::cbrt(static_cast<double>(requested_particles))))) };
+        Scenario scenario { make_scenario(side, 0.6f) };
+        points = std::move(scenario.points);
+        bounds_min = scenario.bounds_min;
+        bounds_max = scenario.bounds_max;
+        std::println("{} particles ({} x {} x {} cube) in a {:.1f} x {:.1f} x {:.1f} m tank", points.size(), side, side, side, bounds_max.x - bounds_min.x, bounds_max.y - bounds_min.y, bounds_max.z - bounds_min.z);
+
+    }
+    else
+    {
+
+        for (int x { 0 }; x < 10; ++x)
+        {
+
+            for (int y { 0 }; y < 10; ++y)
+            {
+
+                for (int z { 0 }; z < 10; ++z)
+                {
+
+                    points.emplace_back(-0.45f + x * 0.1f, -0.45f + y * 0.1f, -0.45f + z * 0.1f, 1.0f);
+
+                }
+
+            }
+
+        }
+
     }
 
     // hand the starting positions to the GPU simulation, which keeps them in its own buffers
     const std::size_t particle_count { points.size() };
-    GpuSimulation simulation { graphics, std::move(points) };
+    GpuSimulation simulation { graphics, std::move(points), bounds_min, bounds_max };
     RenderShader render_shader { graphics, L"shaders/particles.hlsl" };
 
     // the tank outline: a shader that draws a box's 12 edges, and the box corners it reads
@@ -65,6 +105,7 @@ try
 
     // orbit camera, plus the constant buffer that carries its matrix to the shader
     Camera camera {};
+    camera.frame(bounds_min, bounds_max);
     ConstantBuffer camera_buffer { graphics, sizeof(::DirectX::XMFLOAT4X4) };
     Gui gui { window, graphics };
 

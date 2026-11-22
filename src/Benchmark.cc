@@ -1,6 +1,7 @@
-﻿#include "Benchmark.hh"
+#include "Benchmark.hh"
 
 #include "GpuSimulation.hh"
+#include "Scenario.hh"
 #include "Simulation.hh"
 
 #include <DirectXMath.h>
@@ -14,45 +15,6 @@
 
 namespace
 {
-
-    // a cube of n x n x n particles, 0.1 m apart, resting on the floor of a tank just big enough to hold it (plus headroom above)
-    struct Scenario
-    {
-
-        std::vector<::DirectX::XMFLOAT4> points {};   // starting particle positions
-        ::DirectX::XMFLOAT3 bounds_min {};            // tank minimum corner
-        ::DirectX::XMFLOAT3 bounds_max {};            // tank maximum corner
-
-    };
-
-    Scenario make_scenario(int n)
-    {
-
-        Scenario scenario {};
-        const float half_width { static_cast<float>(n) * 0.05f };
-
-        for (int x { 0 }; x < n; ++x)
-        {
-
-            for (int y { 0 }; y < n; ++y)
-            {
-
-                for (int z { 0 }; z < n; ++z)
-                {
-
-                    scenario.points.emplace_back(-half_width + 0.05f + static_cast<float>(x) * 0.1f, 0.05f + static_cast<float>(y) * 0.1f, -half_width + 0.05f + static_cast<float>(z) * 0.1f, 1.0f);
-
-                }
-
-            }
-
-        }
-
-        scenario.bounds_min = { -half_width - 0.3f, 0.0f, -half_width - 0.3f };
-        scenario.bounds_max = { half_width + 0.3f, static_cast<float>(n) * 0.1f + 1.0f, half_width + 0.3f };
-        return scenario;
-
-    }
 
     constexpr float step_time { 1.0f / 480.0f }; // the physics step used everywhere
 

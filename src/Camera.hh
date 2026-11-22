@@ -25,6 +25,9 @@ public:
     // reads the mouse from the window and updates yaw, pitch and distance (call once per frame)
     void update(Window& window);
 
+    // points the camera at the middle of a box and backs it off far enough to see the whole box
+    void frame(const ::DirectX::XMFLOAT3& box_min, const ::DirectX::XMFLOAT3& box_max);
+
     // builds view * projection for the current camera, ready to upload to the constant buffer
     // takes camera position and builds the matrices ready to render hte scene
     ::DirectX::XMFLOAT4X4 viewProjection(float aspect) const;

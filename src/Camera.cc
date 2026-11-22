@@ -30,6 +30,18 @@ void Camera::update(Window& window)
 
 }
 
+void Camera::frame(const ::DirectX::XMFLOAT3& box_min, const ::DirectX::XMFLOAT3& box_max)
+{
+
+    // look at the middle of the box
+    m_target = { (box_min.x + box_max.x) * 0.5f, (box_min.y + box_max.y) * 0.5f, (box_min.z + box_max.z) * 0.5f };
+
+    // with a 60 degree vertical view, a sphere around the box fits when the camera is twice its radius away; 1.2 adds a margin
+    const float radius { 0.5f * std::sqrt((box_max.x - box_min.x) * (box_max.x - box_min.x) + (box_max.y - box_min.y) * (box_max.y - box_min.y) + (box_max.z - box_min.z) * (box_max.z - box_min.z)) };
+    m_distance = 2.4f * radius;
+
+}
+
 ::DirectX::XMFLOAT4X4 Camera::viewProjection(float aspect) const
 {
 
