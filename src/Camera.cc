@@ -42,6 +42,24 @@ void Camera::frame(const ::DirectX::XMFLOAT3& box_min, const ::DirectX::XMFLOAT3
 
 }
 
+Camera::ShaderData Camera::shader_data(float aspect) const
+{
+
+    // forward points from the camera to its target; in a left-handed system right = up x forward, and the camera's own up = forward x right
+    const ::DirectX::XMVECTOR target { ::DirectX::XMVectorSet(m_target.x, m_target.y, m_target.z, 1.0f) };
+    const ::DirectX::XMVECTOR forward { ::DirectX::XMVector3Normalize(::DirectX::XMVectorSubtract(target, _eye())) };
+    const ::DirectX::XMVECTOR right { ::DirectX::XMVector3Normalize(::DirectX::XMVector3Cross(::DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), forward)) };
+    const ::DirectX::XMVECTOR up { ::DirectX::XMVector3Cross(forward, right) };
+
+    ShaderData data {};
+    data.view_projection = viewProjection(aspect);
+    ::DirectX::XMStoreFloat4(&data.right, right);
+    ::DirectX::XMStoreFloat4(&data.up, up);
+    ::DirectX::XMStoreFloat4(&data.toward, ::DirectX::XMVectorNegate(forward));
+    return data;
+
+}
+
 ::DirectX::XMFLOAT4X4 Camera::viewProjection(float aspect) const
 {
 

@@ -25,6 +25,15 @@ public:
     // binds the back buffer + depth buffer, clears them to the given color, and sets the full-window viewport
     void beginFrame(float r, float g, float b, float a);
 
+    // draws into the given texture (together with the shared depth buffer) instead of the window, until bind_back_buffer() is called
+    void set_render_target(::ID3D11RenderTargetView* render_target);
+
+    // goes back to drawing into the window
+    void bind_back_buffer();
+
+    // resets the shared depth buffer, so a new pass starts with nothing in front of anything
+    void clear_depth();
+
     // shows the finished frame; vsync off uses tearing when the display supports it (for benchmarking)
     void present(bool vsync);
 

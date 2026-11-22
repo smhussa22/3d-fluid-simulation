@@ -29,7 +29,7 @@ public:
     void drawFps();
 
     // shows the controls panel in the top-left corner with sliders for the simulation settings; returns true on the frame Reset is clicked
-    bool drawControls(Simulation::Settings& settings);
+    bool drawControls(Simulation::Settings& settings, bool& show_depth);
 
     // true while the mouse is over the panel (or dragging it), so the scene should ignore the mouse
     bool wantsMouse() const;

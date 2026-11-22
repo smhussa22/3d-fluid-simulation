@@ -54,7 +54,7 @@ void Gui::drawFps()
 
 }
 
-bool Gui::drawControls(Simulation::Settings& settings)
+bool Gui::drawControls(Simulation::Settings& settings, bool& show_depth)
 {
 
     bool reset_clicked { false };
@@ -68,6 +68,8 @@ bool Gui::drawControls(Simulation::Settings& settings)
         ::ImGui::SliderFloat("Stiffness", &settings.stiffness, 0.0f, 500.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
         ::ImGui::SliderFloat("Damping", &settings.damping, 0.0f, 1.0f, "%.2f");
         ::ImGui::SliderFloat("Gravity", &settings.gravity, -20.0f, 0.0f, "%.1f");
+
+        ::ImGui::Checkbox("Show depth texture", &show_depth);
 
         if (::ImGui::Button("Reset (R)"))
         {

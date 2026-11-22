@@ -25,6 +25,20 @@ public:
     // reads the mouse from the window and updates yaw, pitch and distance (call once per frame)
     void update(Window& window);
 
+    // everything the particle shaders need to know about the camera, laid out to match the cbuffer in particles.hlsl
+    struct ShaderData
+    {
+
+        ::DirectX::XMFLOAT4X4 view_projection {}; // world -> screen
+        ::DirectX::XMFLOAT4 right {};             // the camera's right direction in the world (xyz)
+        ::DirectX::XMFLOAT4 up {};                // the camera's up direction in the world (xyz)
+        ::DirectX::XMFLOAT4 toward {};            // the direction from the scene toward the camera (xyz)
+
+    };
+
+    // the matrix plus the camera's own axes, so shaders can draw quads that face the camera
+    ShaderData shader_data(float aspect) const;
+
     // points the camera at the middle of a box and backs it off far enough to see the whole box
     void frame(const ::DirectX::XMFLOAT3& box_min, const ::DirectX::XMFLOAT3& box_max);
 

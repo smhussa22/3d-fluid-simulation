@@ -1,16 +1,23 @@
-StructuredBuffer<float4> positions : register(t0);
+#include "particle_common.hlsli"
 
-cbuffer Camera : register(b0)
+// treat each quad as a sphere: pixels outside the circle are thrown away, the rest get lighting
+float4 ps_main(VertexOutput input, out float depth : SV_Depth) : SV_Target
 {
-    row_major float4x4 view_projection;
-};
+    float3 normal;
+    float4 clip;
 
-float4 vs_main(uint id : SV_VertexID) : SV_Position
-{
-    return mul(float4(positions[id].xyz, 1.0f), view_projection);
-}
+    if (!sphere_surface(input, normal, clip))
+    {
+        discard;
+    }
 
-float4 ps_main() : SV_Target
-{
-    return float4(0.3f, 0.7f, 1.0f, 1.0f);
+    // the real depth of that point on the sphere, so overlapping spheres cut into each other correctly instead of showing flat quads
+    depth = clip.z / clip.w;
+
+    // brighter where the surface faces the light, plus a small highlight
+    const float diffuse = saturate(dot(normal, light_direction.xyz));
+    const float3 halfway = normalize(light_direction.xyz + camera_toward.xyz);
+    const float specular = pow(saturate(dot(normal, halfway)), 48.0f) * 0.4f;
+
+    return float4(particle_color.rgb * (0.25f + 0.75f * diffuse) + specular, 1.0f);
 }

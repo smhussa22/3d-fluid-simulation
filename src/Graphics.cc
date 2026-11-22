@@ -106,6 +106,28 @@ void Graphics::beginFrame(float r, float g, float b, float a)
 
 }
 
+void Graphics::set_render_target(::ID3D11RenderTargetView* render_target)
+{
+
+    m_context->OMSetRenderTargets(1u, &render_target, m_dsv.Get());
+
+}
+
+void Graphics::bind_back_buffer()
+{
+
+    ::ID3D11RenderTargetView* rtv { m_rtv.Get() };
+    m_context->OMSetRenderTargets(1u, &rtv, m_dsv.Get());
+
+}
+
+void Graphics::clear_depth()
+{
+
+    m_context->ClearDepthStencilView(m_dsv.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0u);
+
+}
+
 void Graphics::present(bool vsync)
 {
 

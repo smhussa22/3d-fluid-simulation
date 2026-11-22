@@ -5,6 +5,7 @@
 #include "RenderShader.hh"
 #include "ConstantBuffer.hh"
 #include "Camera.hh"
+#include "RenderTarget.hh"
 #include "Gui.hh"
 #include "Benchmark.hh"
 #include "GpuSimulation.hh"
@@ -111,6 +112,24 @@ try
     GpuSimulation simulation { graphics, std::move(points), bounds_min, bounds_max };
     RenderShader render_shader { graphics, L"shaders/particles.hlsl" };
 
+    // the depth pass: the spheres drawn again, writing each pixel's distance from the camera into a texture (0 where there is no water); the debug shader shows that texture on screen
+    RenderTarget depth_target { graphics, window.width(), window.height(), DXGI_FORMAT_R32_FLOAT };
+    RenderShader depth_shader { graphics, L"shaders/particle_depth.hlsl" };
+    RenderShader show_depth_shader { graphics, L"shaders/show_depth.hlsl" };
+    bool show_depth { false };
+
+    for (int i { 1 }; i < argc; ++i)
+    {
+
+        if (std::string_view { argv[i] } == "--show-depth")
+        {
+
+            show_depth = true;
+
+        }
+
+    }
+
     // the tank outline: a shader that draws a box's 12 edges, and the box corners it reads
     RenderShader box_shader { graphics, L"shaders/box.hlsl" };
     ConstantBuffer box_buffer { graphics, 2uz * sizeof(::DirectX::XMFLOAT4) };
@@ -120,7 +139,22 @@ try
     // orbit camera, plus the constant buffer that carries its matrix to the shader
     Camera camera {};
     camera.frame(bounds_min, bounds_max);
-    ConstantBuffer camera_buffer { graphics, sizeof(::DirectX::XMFLOAT4X4) };
+    ConstantBuffer camera_buffer { graphics, sizeof(Camera::ShaderData) };
+
+    // how the particles are drawn: sphere radius, the light, and the water color (the layout matches the ParticleParams cbuffer in particles.hlsl)
+    struct ParticleParams
+    {
+
+        float radius;                       // world-space radius of each drawn sphere
+        float padding[3];                   // fills the first 16 bytes
+        ::DirectX::XMFLOAT4 light_direction; // direction toward the light (xyz)
+        ::DirectX::XMFLOAT4 color;           // base color of the water (rgb)
+
+    };
+
+    const ParticleParams particle_params { 0.07f, { 0.0f, 0.0f, 0.0f }, { 0.4f, 0.8f, 0.45f, 0.0f }, { 0.25f, 0.55f, 1.0f, 1.0f } };
+    ConstantBuffer particle_params_buffer { graphics, sizeof(ParticleParams) };
+    particle_params_buffer.write(graphics, &particle_params);
     Gui gui { window, graphics };
 
     // the physics advances in fixed-size steps, however fast frames are drawn
@@ -180,8 +214,8 @@ try
         }
 
 
-        const ::DirectX::XMFLOAT4X4 view_projection { camera.viewProjection(static_cast<float>(window.width()) / static_cast<float>(window.height())) };
-        camera_buffer.write(graphics, &view_projection);
+        const Camera::ShaderData camera_data { camera.shader_data(static_cast<float>(window.width()) / static_cast<float>(window.height())) };
+        camera_buffer.write(graphics, &camera_data);
 
         graphics.beginFrame(0.0f, 0.0f, 0.0f, 1.0f);
         gui.beginFrame();
@@ -190,7 +224,7 @@ try
         // restart the simulation when Reset is clicked or R is pressed (once per press)
         const bool r_is_down { window.key(GLFW_KEY_R) };
 
-        if (gui.drawControls(simulation.settings()) || (r_is_down && !r_was_down))
+        if (gui.drawControls(simulation.settings(), show_depth) || (r_is_down && !r_was_down))
         {
 
             simulation.reset(graphics);
@@ -199,20 +233,54 @@ try
 
         r_was_down = r_is_down;
 
-        // draw every particle as a point, reading positions straight from the buffer the compute shaders write
+        // everything the sphere passes share: the particle positions, the camera, and the sphere settings
         ::ID3D11ShaderResourceView* srv { simulation.position_buffer().shader_resource_view() };
-        render_shader.use(graphics);
         camera_buffer.bind_vertex(graphics, 0u);
+        camera_buffer.bind_pixel(graphics, 0u);
+        particle_params_buffer.bind_vertex(graphics, 2u);
+        particle_params_buffer.bind_pixel(graphics, 2u);
         graphics.context()->VSSetShaderResources(0u, 1u, &srv);
         graphics.context()->IASetInputLayout(nullptr);
-        graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
-        graphics.context()->Draw(static_cast<::UINT>(particle_count), 0u);
+        graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+
+        // depth pass (only when the debug view is on): draw the spheres into the depth texture, then go back to drawing into the window with a fresh depth buffer
+        if (show_depth)
+        {
+
+            depth_target.clear(graphics, 0.0f, 0.0f, 0.0f, 0.0f);
+            graphics.set_render_target(depth_target.render_target_view());
+            graphics.clear_depth();
+            depth_shader.use(graphics);
+            graphics.context()->DrawInstanced(4u, static_cast<::UINT>(particle_count), 0u, 0u);
+            graphics.bind_back_buffer();
+            graphics.clear_depth();
+
+        }
+
+        // draw every particle as a lit sphere (one camera-facing quad each), reading positions straight from the buffer the compute shaders write
+        render_shader.use(graphics);
+        graphics.context()->DrawInstanced(4u, static_cast<::UINT>(particle_count), 0u, 0u);
 
         // draw the tank outline as 12 lines
         box_shader.use(graphics);
         box_buffer.bind_vertex(graphics, 1u);
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
         graphics.context()->Draw(24u, 0u);
+
+        // debug view: cover the window with the depth texture as grayscale bands, then let go of the texture so the next depth pass can draw into it again
+        if (show_depth)
+        {
+
+            ::ID3D11ShaderResourceView* depth_view { depth_target.shader_resource_view() };
+            show_depth_shader.use(graphics);
+            graphics.context()->PSSetShaderResources(0u, 1u, &depth_view);
+            graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            graphics.context()->Draw(3u, 0u);
+
+            ::ID3D11ShaderResourceView* no_view { nullptr };
+            graphics.context()->PSSetShaderResources(0u, 1u, &no_view);
+
+        }
 
         // draw the on-screen overlay on top of the scene
         gui.render();

@@ -32,6 +32,14 @@ void ConstantBuffer::bind_vertex(const Graphics& graphics, ::UINT slot) const
 
 }
 
+void ConstantBuffer::bind_pixel(const Graphics& graphics, ::UINT slot) const
+{
+
+    ::ID3D11Buffer* buffer { m_buffer.Get() };
+    graphics.context()->PSSetConstantBuffers(slot, 1u, &buffer);
+
+}
+
 void ConstantBuffer::bind_compute(const Graphics& graphics, ::UINT slot) const
 {
 

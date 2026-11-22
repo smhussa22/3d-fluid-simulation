@@ -17,7 +17,7 @@ namespace
         ::Microsoft::WRL::ComPtr<::ID3DBlob> blob {}; // contains the compiled bytes for the file if successful
         ::Microsoft::WRL::ComPtr<::ID3DBlob> errors {}; // contains the compiler error message if unsuccessful
         uint32_t flags { 0u };
-        auto result { ::D3DCompileFromFile(file_path.c_str(), nullptr, nullptr, entry, target, flags, 0u, &blob, &errors) };
+        auto result { ::D3DCompileFromFile(file_path.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, entry, target, flags, 0u, &blob, &errors) };
 
         // if it failed, print the compiler's message, then stop
         if (FAILED(result))

@@ -30,6 +30,9 @@ public:
     // attaches the buffer to a vertex shader slot, matching register(bN) in the hlsl
     void bind_vertex(const Graphics& graphics, ::UINT slot) const;
 
+    // attaches the buffer to a pixel shader slot, matching register(bN) in the hlsl
+    void bind_pixel(const Graphics& graphics, ::UINT slot) const;
+
     // attaches the buffer to a compute shader slot, matching register(bN) in the hlsl
     void bind_compute(const Graphics& graphics, ::UINT slot) const;
 
