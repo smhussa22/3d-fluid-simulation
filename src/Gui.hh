@@ -15,12 +15,15 @@ public:
     struct ViewOptions
     {
 
+        bool surface { true };               // draw the water as a smooth refractive surface (off = draw each particle as a sphere)
+        float refraction_strength { 8.0f }; // how far the background shifts behind thick, tilted water, in pixels
+        float absorption_strength { 1.0f };  // how quickly water darkens and tints with thickness
         bool show_depth { false };           // draw the depth texture over the scene (debug view)
         bool show_normals { false };         // draw the surface normals as colors over the scene (debug view; takes priority over the depth view)
         bool blur_enabled { true };          // smooth the depth texture before showing or using it
-        int blur_radius { 12 };              // how many pixels the blur reaches out on each side
-        float blur_spatial_sigma { 6.0f };   // how quickly the blur weight falls off with pixel distance
-        float blur_depth_sigma { 0.1f };     // how quickly the blur weight falls off with depth difference, in meters
+        int blur_radius { 20 };              // how many pixels the blur reaches out on each side
+        float blur_spatial_sigma { 10.0f };   // how quickly the blur weight falls off with pixel distance
+        float blur_depth_sigma { 0.15f };     // how quickly the blur weight falls off with depth difference, in meters
 
     };
 

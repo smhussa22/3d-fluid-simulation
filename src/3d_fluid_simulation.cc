@@ -155,6 +155,25 @@ try
     ConstantBuffer normal_params_buffer { graphics, sizeof(NormalParams) };
     normal_params_buffer.write(graphics, &normal_params);
 
+    // the water look: a texture of how much water the view passes through, a texture of the scene behind the water (floor and sky), and the shaders that make them and combine everything
+    RenderTarget thickness_target { graphics, window.width(), window.height(), DXGI_FORMAT_R16_FLOAT };
+    RenderTarget background_target { graphics, window.width(), window.height(), DXGI_FORMAT_R8G8B8A8_UNORM };
+    RenderShader thickness_shader { graphics, L"shaders/particle_thickness.hlsl" };
+    RenderShader background_shader { graphics, L"shaders/background.hlsl" };
+    RenderShader water_shader { graphics, L"shaders/water.hlsl" };
+
+    struct WaterParams
+    {
+
+        float refraction_strength;   // how far the background shifts behind thick, tilted water, in pixels
+        float absorption_strength;   // how quickly water darkens and tints with thickness
+        float floor_y;               // height of the floor (the bottom of the tank)
+        float padding;               // fills the 16 bytes
+
+    };
+
+    ConstantBuffer water_params_buffer { graphics, sizeof(WaterParams) };
+
     // one blur pass: read `from`, write the smoothed result into `to`, looking along (x, y)
     const auto blur_pass = [&](const RenderTarget& from, RenderTarget& to, float x, float y)
     {
@@ -180,6 +199,13 @@ try
         {
 
             view.show_depth = true;
+
+        }
+
+        if (std::string_view { argv[i] } == "--spheres")
+        {
+
+            view.surface = false;
 
         }
 
@@ -221,7 +247,7 @@ try
 
     };
 
-    const ParticleParams particle_params { 0.07f, { 0.0f, 0.0f, 0.0f }, { 0.4f, 0.8f, 0.45f, 0.0f }, { 0.25f, 0.55f, 1.0f, 1.0f } };
+    const ParticleParams particle_params { 0.1f, { 0.0f, 0.0f, 0.0f }, { 0.4f, 0.8f, 0.45f, 0.0f }, { 0.25f, 0.55f, 1.0f, 1.0f } };
     ConstantBuffer particle_params_buffer { graphics, sizeof(ParticleParams) };
     particle_params_buffer.write(graphics, &particle_params);
     Gui gui { window, graphics };
@@ -312,15 +338,20 @@ try
         graphics.context()->IASetInputLayout(nullptr);
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
-        // depth pass (only when the debug view is on): draw the spheres into the depth texture, then go back to drawing into the window with a fresh depth buffer
-        if (view.show_depth || view.show_normals)
+        // the water surface and both debug views are built from the same maps (depth, smoothed depth, normals), so build them whenever any of those is showing
+        const bool needs_maps { view.surface || view.show_depth || view.show_normals };
+        const bool show_surface { view.surface && !view.show_depth && !view.show_normals };
+
+        if (needs_maps)
         {
 
+            // depth pass: draw the spheres into the depth texture, then go back to drawing into the window with a fresh depth buffer
             depth_target.clear(graphics, 0.0f, 0.0f, 0.0f, 0.0f);
             graphics.set_render_target(depth_target.render_target_view());
             graphics.clear_depth();
             depth_shader.use(graphics);
             graphics.context()->DrawInstanced(4u, static_cast<::UINT>(particle_count), 0u, 0u);
+
             // smooth the depth: blur along x into the second texture, then along y into the third
             if (view.blur_enabled)
             {
@@ -350,21 +381,12 @@ try
 
         }
 
-        // draw every particle as a lit sphere (one camera-facing quad each), reading positions straight from the buffer the compute shaders write
-        render_shader.use(graphics);
-        graphics.context()->DrawInstanced(4u, static_cast<::UINT>(particle_count), 0u, 0u);
-
-        // draw the tank outline as 12 lines
-        box_shader.use(graphics);
-        box_buffer.bind_vertex(graphics, 1u);
-        graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-        graphics.context()->Draw(24u, 0u);
-
-        // debug view: cover the window with the depth texture as grayscale bands, then let go of the texture so the next depth pass can draw into it again
         if (view.show_normals)
         {
 
+            // debug view: the normals as colors, covering the window
             ::ID3D11ShaderResourceView* normal_view { normal_target.shader_resource_view() };
+            graphics.bind_back_buffer(false);
             show_normals_shader.use(graphics);
             graphics.context()->PSSetShaderResources(0u, 1u, &normal_view);
             graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -372,22 +394,74 @@ try
 
             ::ID3D11ShaderResourceView* no_normals { nullptr };
             graphics.context()->PSSetShaderResources(0u, 1u, &no_normals);
+            graphics.bind_back_buffer();
 
         }
         else if (view.show_depth)
         {
 
+            // debug view: the depth texture as grayscale bands, covering the window (then let go of the texture so the next depth pass can draw into it again)
             ::ID3D11ShaderResourceView* depth_view { view.blur_enabled ? smooth_target.shader_resource_view() : depth_target.shader_resource_view() };
+            graphics.bind_back_buffer(false);
             show_depth_shader.use(graphics);
             graphics.context()->PSSetShaderResources(0u, 1u, &depth_view);
             graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             graphics.context()->Draw(3u, 0u);
 
-            ::ID3D11ShaderResourceView* no_view { nullptr };
-            graphics.context()->PSSetShaderResources(0u, 1u, &no_view);
+            ::ID3D11ShaderResourceView* no_depth_view { nullptr };
+            graphics.context()->PSSetShaderResources(0u, 1u, &no_depth_view);
+            graphics.bind_back_buffer();
+
+        }
+        else if (show_surface)
+        {
+
+            // thickness: every sphere adds the length of the line of sight through it (blending is switched to add), giving how much water the view passes through at each pixel
+            thickness_target.clear(graphics, 0.0f, 0.0f, 0.0f, 0.0f);
+            graphics.set_render_target(thickness_target.render_target_view(), false);
+            graphics.set_additive_blending(true);
+            thickness_shader.use(graphics);
+            graphics.context()->DrawInstanced(4u, static_cast<::UINT>(particle_count), 0u, 0u);
+            graphics.set_additive_blending(false);
+
+            // the settings the background and water shaders read
+            const WaterParams water_params { view.refraction_strength, view.absorption_strength, simulation.boundsMin().y, 0.0f };
+            water_params_buffer.write(graphics, &water_params);
+            water_params_buffer.bind_pixel(graphics, 4u);
+            normal_params_buffer.bind_pixel(graphics, 3u);
+            graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+            // background: the floor and sky, drawn into a texture so the water can bend and tint what is behind it
+            graphics.set_render_target(background_target.render_target_view(), false);
+            background_shader.use(graphics);
+            graphics.context()->Draw(3u, 0u);
+
+            // the water: combine the normals, the thickness and the background into the final picture in the window
+            ::ID3D11ShaderResourceView* water_inputs[3] { normal_target.shader_resource_view(), thickness_target.shader_resource_view(), background_target.shader_resource_view() };
+            graphics.bind_back_buffer(false);
+            water_shader.use(graphics);
+            graphics.context()->PSSetShaderResources(0u, 3u, water_inputs);
+            graphics.context()->Draw(3u, 0u);
+
+            ::ID3D11ShaderResourceView* no_inputs[3] { nullptr, nullptr, nullptr };
+            graphics.context()->PSSetShaderResources(0u, 3u, no_inputs);
+            graphics.bind_back_buffer();
+
+        }
+        else
+        {
+
+            // draw every particle as a lit sphere (one camera-facing quad each), reading positions straight from the buffer the compute shaders write
+            render_shader.use(graphics);
+            graphics.context()->DrawInstanced(4u, static_cast<::UINT>(particle_count), 0u, 0u);
 
         }
 
+        // draw the tank outline as 12 lines, on top of whatever is showing
+        box_shader.use(graphics);
+        box_buffer.bind_vertex(graphics, 1u);
+        graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+        graphics.context()->Draw(24u, 0u);
         // draw the on-screen overlay on top of the scene
         gui.render();
         

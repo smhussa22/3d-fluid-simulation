@@ -83,6 +83,18 @@ Graphics::Graphics(::HWND hwnd, int width, int height) : m_width { width }, m_he
     check(m_device->CreateDepthStencilView(m_depth_texture.Get(), nullptr, &m_dsv), "CreateDepthStencilView");
 
 
+    // a blend setting that adds a new pixel onto whatever is already there (new + old)
+    ::D3D11_BLEND_DESC blend_desc {};
+    blend_desc.RenderTarget[0].BlendEnable = TRUE;
+    blend_desc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+    blend_desc.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
+    blend_desc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    blend_desc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    blend_desc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
+    blend_desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    blend_desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    check(m_device->CreateBlendState(&blend_desc, &m_additive_blend), "CreateBlendState (additive)");
+
     // an event query is a marker the GPU signals once it has finished everything sent before it
     ::D3D11_QUERY_DESC query_desc {};
     query_desc.Query = D3D11_QUERY_EVENT;
@@ -113,11 +125,18 @@ void Graphics::set_render_target(::ID3D11RenderTargetView* render_target, bool w
 
 }
 
-void Graphics::bind_back_buffer()
+void Graphics::bind_back_buffer(bool with_depth)
 {
 
     ::ID3D11RenderTargetView* rtv { m_rtv.Get() };
-    m_context->OMSetRenderTargets(1u, &rtv, m_dsv.Get());
+    m_context->OMSetRenderTargets(1u, &rtv, with_depth ? m_dsv.Get() : nullptr);
+
+}
+
+void Graphics::set_additive_blending(bool enabled)
+{
+
+    m_context->OMSetBlendState(enabled ? m_additive_blend.Get() : nullptr, nullptr, 0xFFFFFFFFu);
 
 }
 

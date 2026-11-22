@@ -28,8 +28,11 @@ public:
     // draws into the given texture instead of the window, until bind_back_buffer() is called; with_depth also uses the shared depth buffer (full-screen image passes turn it off)
     void set_render_target(::ID3D11RenderTargetView* render_target, bool with_depth = true);
 
-    // goes back to drawing into the window
-    void bind_back_buffer();
+    // goes back to drawing into the window; with_depth also uses the shared depth buffer (full-screen image passes turn it off)
+    void bind_back_buffer(bool with_depth = true);
+
+    // when on, everything drawn is added onto what is already in the target instead of replacing it (used to total up the water thickness)
+    void set_additive_blending(bool enabled);
 
     // resets the shared depth buffer, so a new pass starts with nothing in front of anything
     void clear_depth();
@@ -61,6 +64,7 @@ private:
     int m_width { 0 };                                                 // back buffer width in pixels
     int m_height { 0 };                                                // back buffer height in pixels
     bool m_tearing { false };                                          // display supports uncapped (tearing) present
+    ::Microsoft::WRL::ComPtr<::ID3D11BlendState> m_additive_blend {}; // blend setting that adds new pixels onto the old ones
     ::Microsoft::WRL::ComPtr<::ID3D11Query> m_event_query {}; // a marker the GPU signals when it reaches it, used by wait_for_gpu()
 
 };

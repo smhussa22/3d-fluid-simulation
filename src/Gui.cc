@@ -69,6 +69,11 @@ bool Gui::drawControls(Simulation::Settings& settings, ViewOptions& view)
         ::ImGui::SliderFloat("Damping", &settings.damping, 0.0f, 1.0f, "%.2f");
         ::ImGui::SliderFloat("Gravity", &settings.gravity, -20.0f, 0.0f, "%.1f");
 
+        // the water look
+        ::ImGui::Checkbox("Water surface (off = spheres)", &view.surface);
+        ::ImGui::SliderFloat("Refraction", &view.refraction_strength, 0.0f, 120.0f, "%.0f");
+        ::ImGui::SliderFloat("Absorption", &view.absorption_strength, 0.0f, 4.0f, "%.2f");
+
         // the depth texture and how it is smoothed
         ::ImGui::Checkbox("Show depth texture", &view.show_depth);
         ::ImGui::Checkbox("Show normals", &view.show_normals);

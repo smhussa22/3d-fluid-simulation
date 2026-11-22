@@ -1,12 +1,6 @@
 StructuredBuffer<float4> positions : register(t0);
 
-cbuffer Camera : register(b0)
-{
-    row_major float4x4 view_projection;
-    float4 camera_right;  // xyz = the camera's right direction in the world
-    float4 camera_up;     // xyz = the camera's up direction in the world
-    float4 camera_toward; // xyz = the direction from the scene toward the camera
-};
+#include "camera_common.hlsli"
 
 cbuffer ParticleParams : register(b2)
 {

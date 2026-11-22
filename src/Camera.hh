@@ -36,6 +36,7 @@ public:
         ::DirectX::XMFLOAT4 right {};             // the camera's right direction in the world (xyz)
         ::DirectX::XMFLOAT4 up {};                // the camera's up direction in the world (xyz)
         ::DirectX::XMFLOAT4 toward {};            // the direction from the scene toward the camera (xyz)
+        ::DirectX::XMFLOAT4 eye {};               // where the camera is in the world (xyz)
 
     };
 

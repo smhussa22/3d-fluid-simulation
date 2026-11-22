@@ -56,6 +56,7 @@ Camera::ShaderData Camera::shader_data(float aspect) const
     ::DirectX::XMStoreFloat4(&data.right, right);
     ::DirectX::XMStoreFloat4(&data.up, up);
     ::DirectX::XMStoreFloat4(&data.toward, ::DirectX::XMVectorNegate(forward));
+    ::DirectX::XMStoreFloat4(&data.eye, _eye());
     return data;
 
 }
