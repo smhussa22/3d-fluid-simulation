@@ -6,7 +6,7 @@
 #include "ConstantBuffer.hh"
 #include "Camera.hh"
 #include "Gui.hh"
-#include "Simulation.hh"
+#include "GpuSimulation.hh"
 
 #include <algorithm>
 #include <exception>
@@ -41,10 +41,9 @@ try
         }
     }
 
-    // upload the starting positions, then hand them over to the simulation
+    // hand the starting positions to the GPU simulation, which keeps them in its own buffers
     const std::size_t particle_count { points.size() };
-    Buffer particles { graphics, sizeof(::DirectX::XMFLOAT4), particle_count, points.data() };
-    Simulation simulation { std::move(points) };
+    GpuSimulation simulation { graphics, std::move(points) };
     RenderShader render_shader { graphics, L"shaders/particles.hlsl" };
 
     // the tank outline: a shader that draws a box's 12 edges, and the box corners it reads
@@ -86,7 +85,7 @@ try
         while (accumulator >= step_time && steps_this_frame < max_steps_per_frame)
         {
 
-            simulation.step(static_cast<float>(step_time));
+            simulation.step(graphics, static_cast<float>(step_time));
             accumulator -= step_time;
             ++steps_this_frame;
 
@@ -99,9 +98,6 @@ try
             accumulator = 0.0;
 
         }
-
-        // send the updated particle positions to the gpu buffer the renderer reads
-        particles.write(graphics, simulation.positions().data());
 
         // move the camera from mouse input unless the mouse is over the panel (scroll is discarded there so it doesn't build up), then upload its new matrix
         if (!gui.wantsMouse())
@@ -131,16 +127,16 @@ try
         if (gui.drawControls(simulation.settings()) || (r_is_down && !r_was_down))
         {
 
-            simulation.reset();
+            simulation.reset(graphics);
 
         }
 
         r_was_down = r_is_down;
 
-        // draw every particle as a point, reading positions from the buffer
-        ::ID3D11ShaderResourceView* srv { particles.srv() };
+        // draw every particle as a point, reading positions straight from the buffer the compute shaders write
+        ::ID3D11ShaderResourceView* srv { simulation.position_buffer().shader_resource_view() };
         render_shader.use(graphics);
-        camera_buffer.bindVertex(graphics, 0u);
+        camera_buffer.bind_vertex(graphics, 0u);
         graphics.context()->VSSetShaderResources(0u, 1u, &srv);
         graphics.context()->IASetInputLayout(nullptr);
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
@@ -148,7 +144,7 @@ try
 
         // draw the tank outline as 12 lines
         box_shader.use(graphics);
-        box_buffer.bindVertex(graphics, 1u);
+        box_buffer.bind_vertex(graphics, 1u);
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
         graphics.context()->Draw(24u, 0u);
 

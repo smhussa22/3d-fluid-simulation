@@ -24,11 +24,19 @@ void ConstantBuffer::write(const Graphics& graphics, const void* data)
 
 }
 
-void ConstantBuffer::bindVertex(const Graphics& graphics, ::UINT slot) const
+void ConstantBuffer::bind_vertex(const Graphics& graphics, ::UINT slot) const
 {
 
     ::ID3D11Buffer* buffer { m_buffer.Get() };
     graphics.context()->VSSetConstantBuffers(slot, 1u, &buffer);
+
+}
+
+void ConstantBuffer::bind_compute(const Graphics& graphics, ::UINT slot) const
+{
+
+    ::ID3D11Buffer* buffer { m_buffer.Get() };
+    graphics.context()->CSSetConstantBuffers(slot, 1u, &buffer);
 
 }
 

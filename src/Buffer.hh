@@ -32,10 +32,10 @@ public:
     void read(const Graphics& graphics, void* out) const;
 
     // read-only view, bound with CSSetShaderResources for shaders that only read this buffer
-    ::ID3D11ShaderResourceView* srv() const;
+    ::ID3D11ShaderResourceView* shader_resource_view() const;
 
     // read-write view, bound with CSSetUnorderedAccessViews for shaders that write this buffer
-    ::ID3D11UnorderedAccessView* uav() const;
+    ::ID3D11UnorderedAccessView* unordered_access_view() const;
 
     // the underlying buffer resource
     ::ID3D11Buffer* buffer() const;

@@ -61,14 +61,14 @@ void Buffer::read(const Graphics& graphics, void* out) const
 
 }
 
-::ID3D11ShaderResourceView* Buffer::srv() const
+::ID3D11ShaderResourceView* Buffer::shader_resource_view() const
 {
 
     return m_srv.Get();
 
 }
 
-::ID3D11UnorderedAccessView* Buffer::uav() const
+::ID3D11UnorderedAccessView* Buffer::unordered_access_view() const
 {
 
     return m_uav.Get();

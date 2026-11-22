@@ -28,7 +28,10 @@ public:
     void write(const Graphics& graphics, const void* data);
 
     // attaches the buffer to a vertex shader slot, matching register(bN) in the hlsl
-    void bindVertex(const Graphics& graphics, ::UINT slot) const;
+    void bind_vertex(const Graphics& graphics, ::UINT slot) const;
+
+    // attaches the buffer to a compute shader slot, matching register(bN) in the hlsl
+    void bind_compute(const Graphics& graphics, ::UINT slot) const;
 
     // the underlying buffer resource
     ::ID3D11Buffer* buffer() const;
