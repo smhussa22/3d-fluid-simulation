@@ -54,28 +54,30 @@ float poly6(float distance_squared)
     }
 
     const float diff = radius_squared - distance_squared;
-    return (315.0f / (64.0f * PI * pow(kernel_radius, 9.0f))) * diff * diff * diff;
+    return (315.0f / (64.0f * PI * (radius_squared * radius_squared * radius_squared * radius_squared * kernel_radius))) * diff * diff * diff;
 }
 
 // magnitude of the pressure kernel's gradient at a distance (0 beyond the kernel radius)
 float spiky_gradient(float distance)
 {
+    const float radius_squared = kernel_radius * kernel_radius;
     if (distance >= kernel_radius)
     {
         return 0.0f;
     }
 
     const float diff = kernel_radius - distance;
-    return (45.0f / (PI * pow(kernel_radius, 6.0f))) * diff * diff;
+    return (45.0f / (PI * (radius_squared * radius_squared * radius_squared))) * diff * diff;
 }
 
 // the viscosity kernel's Laplacian at a distance (0 beyond the kernel radius)
 float viscosity_laplacian(float distance)
 {
+    const float radius_squared = kernel_radius * kernel_radius;
     if (distance >= kernel_radius)
     {
         return 0.0f;
     }
 
-    return (45.0f / (PI * pow(kernel_radius, 6.0f))) * (kernel_radius - distance);
+    return (45.0f / (PI * (radius_squared * radius_squared * radius_squared))) * (kernel_radius - distance);
 }

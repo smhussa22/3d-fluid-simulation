@@ -21,7 +21,7 @@ public:
     };
 
     // takes in a vector of starting positions and sets every velocity & to zero.
-    explicit Simulation(std::vector<::DirectX::XMFLOAT4> positions);
+    explicit Simulation(std::vector<::DirectX::XMFLOAT4> positions, const ::DirectX::XMFLOAT3& bounds_min = ::DirectX::XMFLOAT3 { -0.6f, -0.6f, -0.6f }, const ::DirectX::XMFLOAT3& bounds_max = ::DirectX::XMFLOAT3 { 0.6f, 0.6f, 0.6f });
     ~Simulation() = default;
     
     Simulation(const Simulation&) = default;
@@ -35,6 +35,9 @@ public:
 
     // puts every particle back at its starting position and stops it moving
     void reset();
+
+    // the density of every particle as of the last step (used to check the GPU version against this one)
+    const std::vector<float>& densities() const;
 
     // the corners of the tank, so the renderer can draw it
     const ::DirectX::XMFLOAT3& boundsMin() const;

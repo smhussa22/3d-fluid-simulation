@@ -4,7 +4,7 @@
 #include <cmath>
 #include <utility>
 
-GpuSimulation::GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XMFLOAT4> positions) : m_particle_count { positions.size() }, m_initial_positions { std::move(positions) }
+GpuSimulation::GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XMFLOAT4> positions, const ::DirectX::XMFLOAT3& bounds_min, const ::DirectX::XMFLOAT3& bounds_max) : m_particle_count { positions.size() }, m_initial_positions { std::move(positions) }, m_bounds_min { bounds_min }, m_bounds_max { bounds_max }
 {
 
     // size the neighbor search grid to fit the tank
@@ -30,7 +30,14 @@ GpuSimulation::GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XM
     // the shared constants
     m_params = std::make_unique<ConstantBuffer>(graphics, sizeof(Params));
 
-    // the compute passes written so far
+    // one compute shader per pass
+    m_clear_cells_shader = std::make_unique<Shader>(graphics, L"shaders/clear_cells.hlsl");
+    m_count_cells_shader = std::make_unique<Shader>(graphics, L"shaders/count_cells.hlsl");
+    m_prefix_sum_shader = std::make_unique<Shader>(graphics, L"shaders/prefix_sum.hlsl");
+    m_scatter_shader = std::make_unique<Shader>(graphics, L"shaders/scatter.hlsl");
+    m_density_shader = std::make_unique<Shader>(graphics, L"shaders/density.hlsl");
+    m_pressure_shader = std::make_unique<Shader>(graphics, L"shaders/pressure.hlsl");
+    m_forces_shader = std::make_unique<Shader>(graphics, L"shaders/forces.hlsl");
     m_integrate_shader = std::make_unique<Shader>(graphics, L"shaders/integrate.hlsl");
 
 }
@@ -43,20 +50,25 @@ void GpuSimulation::step(const Graphics& graphics, float delta_time)
     // every pass reads the same shared constants, in slot b0
     m_params->bind_compute(graphics, 0u);
 
-    // how many groups of 256 threads it takes to give every particle one thread (rounded up)
-    const ::UINT groups { static_cast<::UINT>((m_particle_count + 255uz) / 256uz) };
+    // how many groups of threads it takes to give every particle (or every cell) one thread, rounded up
+    const ::UINT particle_groups { static_cast<::UINT>((m_particle_count + 255uz) / 256uz) };
+    const ::UINT cell_groups { static_cast<::UINT>((m_cell_count + 255uz) / 256uz) };
 
-    // integrate: apply gravity, move the particles, bounce them off the walls (writes positions and velocities)
-    ::ID3D11UnorderedAccessView* integrate_views[2] { m_positions->unordered_access_view(), m_velocities->unordered_access_view() };
-    graphics.context()->CSSetUnorderedAccessViews(0u, 2u, integrate_views, nullptr);
-    m_integrate_shader->use(graphics);
-    m_integrate_shader->dispatch(graphics, groups, 1u, 1u);
+    // sort the particles into grid cells: reset the counters, count particles per cell, turn counts into start positions, then place each particle in its cell's slots
+    _run_pass(graphics, *m_clear_cells_shader, {}, { m_cell_counts.get(), m_cell_fill.get() }, cell_groups);
+    _run_pass(graphics, *m_count_cells_shader, { m_positions.get() }, { m_particle_cell.get(), m_cell_counts.get() }, particle_groups);
+    _run_pass(graphics, *m_prefix_sum_shader, { m_cell_counts.get() }, { m_cell_start.get() }, 1u);
+    _run_pass(graphics, *m_scatter_shader, { m_particle_cell.get(), m_cell_start.get() }, { m_cell_fill.get(), m_sorted_indices.get() }, particle_groups);
 
-    // unbind, so the renderer can read the positions buffer without a read/write conflict
-    ::ID3D11UnorderedAccessView* none[2] { nullptr, nullptr };
-    graphics.context()->CSSetUnorderedAccessViews(0u, 2u, none, nullptr);
+    // how crowded each particle is, and the pressure that causes
+    _run_pass(graphics, *m_density_shader, { m_positions.get(), m_sorted_indices.get(), m_cell_start.get() }, { m_densities.get() }, particle_groups);
+    _run_pass(graphics, *m_pressure_shader, { m_densities.get() }, { m_pressures.get() }, particle_groups);
 
-    // more passes get added above this line, in the order listed in the header, as each shader is written
+    // the push (pressure) and drag (viscosity) each particle gets from its neighbors
+    _run_pass(graphics, *m_forces_shader, { m_positions.get(), m_velocities.get(), m_densities.get(), m_pressures.get(), m_sorted_indices.get(), m_cell_start.get() }, { m_accelerations.get() }, particle_groups);
+
+    // apply those accelerations and gravity, move the particles, bounce them off the walls
+    _run_pass(graphics, *m_integrate_shader, { m_accelerations.get() }, { m_positions.get(), m_velocities.get() }, particle_groups);
 
 }
 
@@ -105,6 +117,24 @@ std::size_t GpuSimulation::particle_count() const
 
 }
 
+std::vector<::DirectX::XMFLOAT4> GpuSimulation::read_positions(const Graphics& graphics) const
+{
+
+    std::vector<::DirectX::XMFLOAT4> result(m_particle_count);
+    m_positions->read(graphics, result.data());
+    return result;
+
+}
+
+std::vector<float> GpuSimulation::read_densities(const Graphics& graphics) const
+{
+
+    std::vector<float> result(m_particle_count);
+    m_densities->read(graphics, result.data());
+    return result;
+
+}
+
 void GpuSimulation::_update_params(const Graphics& graphics, float delta_time)
 {
 
@@ -119,5 +149,43 @@ void GpuSimulation::_update_params(const Graphics& graphics, float delta_time)
     };
 
     m_params->write(graphics, &params);
+
+}
+
+void GpuSimulation::_run_pass(const Graphics& graphics, const Shader& shader, std::initializer_list<const Buffer*> inputs, std::initializer_list<const Buffer*> outputs, ::UINT groups) const
+{
+
+    // gather the views for each slot (a compute shader can bind up to 8 read-write views)
+    ::ID3D11ShaderResourceView* input_views[8] {};
+    ::ID3D11UnorderedAccessView* output_views[8] {};
+    ::UINT input_count { 0u };
+    ::UINT output_count { 0u };
+
+    for (const Buffer* buffer : inputs)
+    {
+
+        input_views[input_count] = buffer->shader_resource_view();
+        ++input_count;
+
+    }
+
+    for (const Buffer* buffer : outputs)
+    {
+
+        output_views[output_count] = buffer->unordered_access_view();
+        ++output_count;
+
+    }
+
+    // bind, run, then unbind so the next pass (or the renderer) can use these buffers the other way round without a read/write conflict
+    graphics.context()->CSSetShaderResources(0u, input_count, input_views);
+    graphics.context()->CSSetUnorderedAccessViews(0u, output_count, output_views, nullptr);
+    shader.use(graphics);
+    shader.dispatch(graphics, groups, 1u, 1u);
+
+    ::ID3D11ShaderResourceView* no_inputs[8] {};
+    ::ID3D11UnorderedAccessView* no_outputs[8] {};
+    graphics.context()->CSSetShaderResources(0u, input_count, no_inputs);
+    graphics.context()->CSSetUnorderedAccessViews(0u, output_count, no_outputs, nullptr);
 
 }

@@ -59,7 +59,7 @@ namespace
 
 }
 
-Simulation::Simulation(std::vector<::DirectX::XMFLOAT4> positions) : m_positions { std::move(positions) }
+Simulation::Simulation(std::vector<::DirectX::XMFLOAT4> positions, const ::DirectX::XMFLOAT3& bounds_min, const ::DirectX::XMFLOAT3& bounds_max) : m_positions { std::move(positions) }, m_bounds_min { bounds_min }, m_bounds_max { bounds_max }
 {
 
     m_initial_positions = m_positions;
@@ -166,6 +166,13 @@ void Simulation::reset()
 
     m_positions = m_initial_positions;
     std::ranges::fill(m_velocities, ::DirectX::XMFLOAT3 { 0.0f, 0.0f, 0.0f });
+
+}
+
+const std::vector<float>& Simulation::densities() const
+{
+
+    return m_densities;
 
 }
 

@@ -82,6 +82,12 @@ Graphics::Graphics(::HWND hwnd, int width, int height) : m_width { width }, m_he
     check(m_device->CreateTexture2D(&depth_desc, nullptr, &m_depth_texture), "CreateTexture2D (depth)");
     check(m_device->CreateDepthStencilView(m_depth_texture.Get(), nullptr, &m_dsv), "CreateDepthStencilView");
 
+
+    // an event query is a marker the GPU signals once it has finished everything sent before it
+    ::D3D11_QUERY_DESC query_desc {};
+    query_desc.Query = D3D11_QUERY_EVENT;
+    check(m_device->CreateQuery(&query_desc, &m_event_query), "CreateQuery (event)");
+
 }
 
 void Graphics::beginFrame(float r, float g, float b, float a)
@@ -126,5 +132,18 @@ void Graphics::present(bool vsync)
 {
 
     return m_feature_level;
+
+}
+
+void Graphics::wait_for_gpu() const
+{
+
+    // drop a marker after all queued work, then spin until the GPU reaches it
+    m_context->End(m_event_query.Get());
+    m_context->Flush();
+
+    while (m_context->GetData(m_event_query.Get(), nullptr, 0u, 0u) == S_FALSE)
+    {
+    }
 
 }

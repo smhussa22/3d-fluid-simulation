@@ -28,6 +28,9 @@ public:
     // shows the finished frame; vsync off uses tearing when the display supports it (for benchmarking)
     void present(bool vsync);
 
+    // blocks until the GPU has finished everything sent so far; needed to time GPU work, because dispatches return immediately
+    void wait_for_gpu() const;
+
     // the device, used to create buffers, shaders, and textures
     ::ID3D11Device* device() const;
 
@@ -49,6 +52,7 @@ private:
     int m_width { 0 };                                                 // back buffer width in pixels
     int m_height { 0 };                                                // back buffer height in pixels
     bool m_tearing { false };                                          // display supports uncapped (tearing) present
+    ::Microsoft::WRL::ComPtr<::ID3D11Query> m_event_query {}; // a marker the GPU signals when it reaches it, used by wait_for_gpu()
 
 };
 

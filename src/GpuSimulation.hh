@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <vector>
 
@@ -23,7 +24,7 @@ public:
     using Settings = Simulation::Settings;
 
     // creates every GPU buffer and uploads the starting positions; velocities start at zero
-    explicit GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XMFLOAT4> positions);
+    explicit GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XMFLOAT4> positions, const ::DirectX::XMFLOAT3& bounds_min = ::DirectX::XMFLOAT3 { -0.6f, -0.6f, -0.6f }, const ::DirectX::XMFLOAT3& bounds_max = ::DirectX::XMFLOAT3 { 0.6f, 0.6f, 0.6f });
     ~GpuSimulation() = default;
 
     // the GPU buffers can't be copied
@@ -51,6 +52,12 @@ public:
 
     // how many particles there are
     std::size_t particle_count() const;
+
+    // copies the particle positions back to the CPU (slow; for checking results and debugging only)
+    std::vector<::DirectX::XMFLOAT4> read_positions(const Graphics& graphics) const;
+
+    // copies the particle densities back to the CPU (slow; for checking results and debugging only)
+    std::vector<float> read_densities(const Graphics& graphics) const;
 
 private:
 
@@ -138,6 +145,9 @@ private:
 
     // fills in a Params from the current settings and uploads it to the GPU
     void _update_params(const Graphics& graphics, float delta_time);
+
+    // binds the input buffers (read-only, slots t0, t1, ...) and output buffers (read-write, slots u0, u1, ...), runs the shader over the given number of groups, then unbinds everything again
+    void _run_pass(const Graphics& graphics, const Shader& shader, std::initializer_list<const Buffer*> inputs, std::initializer_list<const Buffer*> outputs, ::UINT groups) const;
 
 };
 

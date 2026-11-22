@@ -6,11 +6,13 @@
 #include "ConstantBuffer.hh"
 #include "Camera.hh"
 #include "Gui.hh"
+#include "Benchmark.hh"
 #include "GpuSimulation.hh"
 
 #include <algorithm>
 #include <exception>
 #include <print>
+#include <string_view>
 #include <utility>
 #include <vector>
 #include <cstdint>
@@ -18,7 +20,7 @@
 
 #include <DirectXMath.h>
 
-int main()
+int main(int argc, char** argv)
 try
 {
 
@@ -26,6 +28,15 @@ try
     Window window { 1280, 720, "3D Fluid Simulation" };
     Graphics graphics { window.hwnd(), window.width(), window.height() };
     std::println("Direct3D 11 ready, feature level {:#x}", static_cast<unsigned>(graphics.featureLevel()));
+
+    // "--benchmark" skips the interactive window loop: it checks the GPU against the CPU, times both, prints a table, and exits
+    if (argc > 1 && std::string_view { argv[1] } == "--benchmark")
+    {
+
+        run_benchmark(graphics);
+        return 0;
+
+    }
 
     std::vector<::DirectX::XMFLOAT4> points {};
 
@@ -36,7 +47,7 @@ try
         {
             for (int z {0}; z < 10; ++z)
             {
-                points.emplace_back(x * 0.1f, y * 0.1f, z * 0.1f, 1.0f);
+                points.emplace_back(-0.45f + x * 0.1f, -0.45f + y * 0.1f, -0.45f + z * 0.1f, 1.0f);
             }
         }
     }

@@ -32,7 +32,7 @@ target_link_libraries(imgui PUBLIC glfw d3d11 dxgi d3dcompiler)
 set(OpenMP_RUNTIME_MSVC llvm)
 find_package(OpenMP REQUIRED)
 
-add_executable(3d_fluid_simulation src/3d_fluid_simulation.cc src/Window.cc src/Graphics.cc src/Buffer.cc src/Shader.cc src/RenderShader.cc src/ConstantBuffer.cc src/Camera.cc src/Gui.cc src/Simulation.cc src/GpuSimulation.cc)
+add_executable(3d_fluid_simulation src/3d_fluid_simulation.cc src/Window.cc src/Graphics.cc src/Buffer.cc src/Shader.cc src/RenderShader.cc src/ConstantBuffer.cc src/Camera.cc src/Gui.cc src/Simulation.cc src/GpuSimulation.cc src/Benchmark.cc)
 target_compile_definitions(3d_fluid_simulation PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN GLFW_INCLUDE_NONE)
 target_link_libraries(3d_fluid_simulation PRIVATE glfw d3d11 dxgi d3dcompiler imgui OpenMP::OpenMP_CXX)
 
