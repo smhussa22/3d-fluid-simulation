@@ -10,12 +10,32 @@
 #include <chrono>
 #include <cmath>
 #include <omp.h>
+#include <format>
 #include <print>
+#include <string>
 #include <vector>
 
 namespace
 {
 
+    // the largest difference between two lists of numbers after sorting both (so the order the particles are stored in does not matter)
+    float max_sorted_difference(std::vector<float> a, std::vector<float> b)
+    {
+
+        std::ranges::sort(a);
+        std::ranges::sort(b);
+        float largest { 0.0f };
+
+        for (std::size_t i { 0uz }; i < a.size(); ++i)
+        {
+
+            largest = std::max(largest, std::abs(a[i] - b[i]));
+
+        }
+
+        return largest;
+
+    }
     constexpr float step_time { 1.0f / 480.0f }; // the physics step used everywhere
 
     // milliseconds between two moments
@@ -82,6 +102,8 @@ void run_benchmark(const Graphics& graphics)
 {
 
     // part 1: run the CPU and GPU simulations from the same start and compare them
+    // (the GPU keeps its particles in grid-cell order, so particle i on the GPU is not particle i on the CPU; instead each list is sorted first, which is valid
+    // because sorting two lists never makes their largest element-by-element difference bigger)
     {
 
         const Scenario scenario { make_scenario(10) };
@@ -91,17 +113,9 @@ void run_benchmark(const Graphics& graphics)
         // after one step, both have computed densities from the same positions
         cpu.step(step_time);
         gpu.step(graphics, step_time);
-        const std::vector<float> gpu_densities { gpu.read_densities(graphics) };
-        float max_density_difference { 0.0f };
+        const float max_density_difference { max_sorted_difference(gpu.read_densities(graphics), cpu.densities()) };
 
-        for (std::size_t i { 0uz }; i < gpu_densities.size(); ++i)
-        {
-
-            max_density_difference = std::max(max_density_difference, std::abs(gpu_densities[i] - cpu.densities()[i]) / std::max(1.0f, cpu.densities()[i]));
-
-        }
-
-        // after 100 more steps, compare where the particles ended up
+        // after 100 more steps, compare where the particles ended up, one coordinate at a time
         for (int s { 0 }; s < 100; ++s)
         {
 
@@ -113,17 +127,27 @@ void run_benchmark(const Graphics& graphics)
         const std::vector<::DirectX::XMFLOAT4> gpu_positions { gpu.read_positions(graphics) };
         float max_position_difference { 0.0f };
 
-        for (std::size_t i { 0uz }; i < gpu_positions.size(); ++i)
+        for (const auto coordinate : { &::DirectX::XMFLOAT4::x, &::DirectX::XMFLOAT4::y, &::DirectX::XMFLOAT4::z })
         {
 
-            max_position_difference = std::max({ max_position_difference, std::abs(gpu_positions[i].x - cpu.positions()[i].x), std::abs(gpu_positions[i].y - cpu.positions()[i].y), std::abs(gpu_positions[i].z - cpu.positions()[i].z) });
+            std::vector<float> from_gpu {};
+            std::vector<float> from_cpu {};
+
+            for (std::size_t i { 0uz }; i < gpu_positions.size(); ++i)
+            {
+
+                from_gpu.push_back(gpu_positions[i].*coordinate);
+                from_cpu.push_back(cpu.positions()[i].*coordinate);
+
+            }
+
+            max_position_difference = std::max(max_position_difference, max_sorted_difference(from_gpu, from_cpu));
 
         }
 
-        std::println("validation, {} particles: max relative density difference after 1 step = {:.2e}, max position difference after 101 steps = {:.2e} m", gpu_positions.size(), max_density_difference, max_position_difference);
+        std::println("validation, {} particles: max density difference after 1 step = {:.2e} kg/m^3, max position difference after 101 steps = {:.2e} m", gpu_positions.size(), max_density_difference, max_position_difference);
 
     }
-
     // part 2: time both at increasing particle counts, starting from a cube at rest on the floor
     std::println("");
     std::println("{} CPU threads (OpenMP), physics step = 1/480 s, simulation only (no drawing)", omp_get_max_threads());
@@ -168,6 +192,60 @@ void run_benchmark(const Graphics& graphics)
         }
 
         std::println("{:>10} {:>14} {:>14.3f} {:>10} {:>14.0f} {:>26.0f}{}", scenario.points.size(), cpu_text, gpu_ms, speedup_text, 1000.0 / gpu_ms, 1000.0 / (8.0 * gpu_ms), bad > 0uz ? std::format("   ({} particles escaped or became nan)", bad) : std::string {});
+
+    }
+
+}
+
+void run_profile(const Graphics& graphics, int particles)
+{
+
+    // the same drop as the interactive window: a cube starting 0.6 m above the floor
+    const int side { std::max(1, static_cast<int>(std::lround(std::cbrt(static_cast<double>(particles))))) };
+    const Scenario scenario { make_scenario(side, 0.6f) };
+    GpuSimulation gpu { graphics, scenario.points, scenario.bounds_min, scenario.bounds_max };
+    std::println("{} particles, physics step = 1/480 s. milliseconds per pass for one step, sampled every 0.125 s of simulated time:", scenario.points.size());
+
+    std::string header { std::format("{:>6} {:>8}", "t (s)", "total") };
+
+    for (const char* name : GpuSimulation::pass_names)
+    {
+
+        header += std::format(" {:>8}", name);
+
+    }
+
+    std::println("{} {:>12}", header, "max density");
+
+    for (int step { 0 }; step < 4800; ++step)
+    {
+
+        // time one step in every 60 (profiling adds a little overhead, so the rest run normally)
+        const bool sample { step % 60 == 0 };
+        gpu.set_profiling(sample);
+        gpu.step(graphics, step_time);
+
+        if (!sample)
+        {
+
+            continue;
+
+        }
+
+        const auto times { gpu.read_pass_times(graphics) };
+        const std::vector<float> densities { gpu.read_densities(graphics) };
+        double total { 0.0 };
+        std::string row {};
+
+        for (const double t : times)
+        {
+
+            total += t;
+            row += std::format(" {:>8.3f}", t);
+
+        }
+
+        std::println("{:>6.3f} {:>8.3f}{} {:>12.0f}", static_cast<double>(step) * static_cast<double>(step_time), total, row, static_cast<double>(*std::max_element(densities.begin(), densities.end())));
 
     }
 

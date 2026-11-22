@@ -55,6 +55,20 @@ try
 
     }
 
+    // "--profile N" drops N particles and prints how long each GPU pass takes over time, then exits
+    for (int i { 1 }; i + 1 < argc; ++i)
+    {
+
+        if (std::string_view { argv[i] } == "--profile")
+        {
+
+            run_profile(graphics, std::stoi(argv[i + 1]));
+            return 0;
+
+        }
+
+    }
+
     std::vector<::DirectX::XMFLOAT4> points {};
     ::DirectX::XMFLOAT3 bounds_min { -0.6f, -0.6f, -0.6f };
     ::DirectX::XMFLOAT3 bounds_max { 0.6f, 0.6f, 0.6f };

@@ -2,7 +2,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <utility>
+
+#include "check.hh"
 
 GpuSimulation::GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XMFLOAT4> positions, const ::DirectX::XMFLOAT3& bounds_min, const ::DirectX::XMFLOAT3& bounds_max) : m_particle_count { positions.size() }, m_initial_positions { std::move(positions) }, m_bounds_min { bounds_min }, m_bounds_max { bounds_max }
 {
@@ -16,6 +19,8 @@ GpuSimulation::GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XM
     // per-particle buffers: positions start from the given values, everything else starts zeroed
     m_positions = std::make_unique<Buffer>(graphics, sizeof(::DirectX::XMFLOAT4), m_particle_count, m_initial_positions.data());
     m_velocities = std::make_unique<Buffer>(graphics, sizeof(::DirectX::XMFLOAT4), m_particle_count, nullptr);
+    m_positions_sorted = std::make_unique<Buffer>(graphics, sizeof(::DirectX::XMFLOAT4), m_particle_count, nullptr);
+    m_velocities_sorted = std::make_unique<Buffer>(graphics, sizeof(::DirectX::XMFLOAT4), m_particle_count, nullptr);
     m_densities = std::make_unique<Buffer>(graphics, sizeof(float), m_particle_count, nullptr);
     m_pressures = std::make_unique<Buffer>(graphics, sizeof(float), m_particle_count, nullptr);
     m_accelerations = std::make_unique<Buffer>(graphics, sizeof(::DirectX::XMFLOAT4), m_particle_count, nullptr);
@@ -30,11 +35,27 @@ GpuSimulation::GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XM
     // the shared constants
     m_params = std::make_unique<ConstantBuffer>(graphics, sizeof(Params));
 
+    // GPU clock queries for profiling
+    ::D3D11_QUERY_DESC timestamp_desc {};
+    timestamp_desc.Query = D3D11_QUERY_TIMESTAMP;
+
+    for (auto& timestamp : m_timestamps)
+    {
+
+        check(graphics.device()->CreateQuery(&timestamp_desc, &timestamp), "CreateQuery (timestamp)");
+
+    }
+
+    ::D3D11_QUERY_DESC disjoint_desc {};
+    disjoint_desc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
+    check(graphics.device()->CreateQuery(&disjoint_desc, &m_timestamp_disjoint), "CreateQuery (timestamp disjoint)");
+
     // one compute shader per pass
     m_clear_cells_shader = std::make_unique<Shader>(graphics, L"shaders/clear_cells.hlsl");
     m_count_cells_shader = std::make_unique<Shader>(graphics, L"shaders/count_cells.hlsl");
     m_prefix_sum_shader = std::make_unique<Shader>(graphics, L"shaders/prefix_sum.hlsl");
     m_scatter_shader = std::make_unique<Shader>(graphics, L"shaders/scatter.hlsl");
+    m_reorder_shader = std::make_unique<Shader>(graphics, L"shaders/reorder.hlsl");
     m_density_shader = std::make_unique<Shader>(graphics, L"shaders/density.hlsl");
     m_pressure_shader = std::make_unique<Shader>(graphics, L"shaders/pressure.hlsl");
     m_forces_shader = std::make_unique<Shader>(graphics, L"shaders/forces.hlsl");
@@ -54,24 +75,68 @@ void GpuSimulation::step(const Graphics& graphics, float delta_time)
     const ::UINT particle_groups { static_cast<::UINT>((m_particle_count + 255uz) / 256uz) };
     const ::UINT cell_groups { static_cast<::UINT>((m_cell_count + 255uz) / 256uz) };
 
+    // when profiling, take a GPU clock reading before the first pass and after every pass
+    std::size_t stamp { 0uz };
+
+    if (m_profiling)
+    {
+
+        graphics.context()->Begin(m_timestamp_disjoint.Get());
+        graphics.context()->End(m_timestamps[0].Get());
+
+    }
+
+    const auto finish_pass = [&]()
+    {
+
+        if (m_profiling)
+        {
+
+            ++stamp;
+            graphics.context()->End(m_timestamps[stamp].Get());
+
+        }
+
+    };
+
     // sort the particles into grid cells: reset the counters, count particles per cell, turn counts into start positions, then place each particle in its cell's slots
     _run_pass(graphics, *m_clear_cells_shader, {}, { m_cell_counts.get(), m_cell_fill.get() }, cell_groups);
+    finish_pass();
     _run_pass(graphics, *m_count_cells_shader, { m_positions.get() }, { m_particle_cell.get(), m_cell_counts.get() }, particle_groups);
+    finish_pass();
     _run_pass(graphics, *m_prefix_sum_shader, { m_cell_counts.get() }, { m_cell_start.get() }, 1u);
+    finish_pass();
     _run_pass(graphics, *m_scatter_shader, { m_particle_cell.get(), m_cell_start.get() }, { m_cell_fill.get(), m_sorted_indices.get() }, particle_groups);
+    finish_pass();
+
+    // physically reorder the particles by cell (copy into the scratch buffers, then swap), so a cell's particles are next to each other in memory instead of scattered
+    _run_pass(graphics, *m_reorder_shader, { m_sorted_indices.get(), m_positions.get(), m_velocities.get() }, { m_positions_sorted.get(), m_velocities_sorted.get() }, particle_groups);
+    finish_pass();
+    std::swap(m_positions, m_positions_sorted);
+    std::swap(m_velocities, m_velocities_sorted);
 
     // how crowded each particle is, and the pressure that causes
-    _run_pass(graphics, *m_density_shader, { m_positions.get(), m_sorted_indices.get(), m_cell_start.get() }, { m_densities.get() }, particle_groups);
+    _run_pass(graphics, *m_density_shader, { m_positions.get(), m_cell_start.get() }, { m_densities.get() }, particle_groups);
+    finish_pass();
     _run_pass(graphics, *m_pressure_shader, { m_densities.get() }, { m_pressures.get() }, particle_groups);
+    finish_pass();
 
     // the push (pressure) and drag (viscosity) each particle gets from its neighbors
-    _run_pass(graphics, *m_forces_shader, { m_positions.get(), m_velocities.get(), m_densities.get(), m_pressures.get(), m_sorted_indices.get(), m_cell_start.get() }, { m_accelerations.get() }, particle_groups);
+    _run_pass(graphics, *m_forces_shader, { m_positions.get(), m_velocities.get(), m_densities.get(), m_pressures.get(), m_cell_start.get() }, { m_accelerations.get() }, particle_groups);
+    finish_pass();
 
     // apply those accelerations and gravity, move the particles, bounce them off the walls
     _run_pass(graphics, *m_integrate_shader, { m_accelerations.get() }, { m_positions.get(), m_velocities.get() }, particle_groups);
+    finish_pass();
+
+    if (m_profiling)
+    {
+
+        graphics.context()->End(m_timestamp_disjoint.Get());
+
+    }
 
 }
-
 void GpuSimulation::reset(const Graphics& graphics)
 {
 
@@ -117,6 +182,55 @@ std::size_t GpuSimulation::particle_count() const
 
 }
 
+void GpuSimulation::set_profiling(bool profiling)
+{
+
+    m_profiling = profiling;
+
+}
+
+std::array<double, GpuSimulation::pass_count> GpuSimulation::read_pass_times(const Graphics& graphics) const
+{
+
+    std::array<double, pass_count> times {};
+
+    // wait for the GPU to finish the profiled step, then read the clock frequency and whether the readings are valid
+    ::D3D11_QUERY_DATA_TIMESTAMP_DISJOINT disjoint {};
+
+    while (graphics.context()->GetData(m_timestamp_disjoint.Get(), &disjoint, sizeof(disjoint), 0u) == S_FALSE)
+    {
+    }
+
+    if (disjoint.Disjoint)
+    {
+
+        return times;
+
+    }
+
+    // each pass takes the gap between two clock readings, converted from ticks to milliseconds
+    for (std::size_t pass { 0uz }; pass < pass_count; ++pass)
+    {
+
+        ::UINT64 begin { 0u };
+        ::UINT64 end { 0u };
+
+        while (graphics.context()->GetData(m_timestamps[pass].Get(), &begin, sizeof(begin), 0u) == S_FALSE)
+        {
+        }
+
+        while (graphics.context()->GetData(m_timestamps[pass + 1uz].Get(), &end, sizeof(end), 0u) == S_FALSE)
+        {
+        }
+
+        times[pass] = static_cast<double>(end - begin) / static_cast<double>(disjoint.Frequency) * 1000.0;
+
+    }
+
+    return times;
+
+}
+
 std::vector<::DirectX::XMFLOAT4> GpuSimulation::read_positions(const Graphics& graphics) const
 {
 
@@ -138,12 +252,17 @@ std::vector<float> GpuSimulation::read_densities(const Graphics& graphics) const
 void GpuSimulation::_update_params(const Graphics& graphics, float delta_time)
 {
 
+    // the kernel constants only depend on the kernel radius, so work them out here once instead of in every thread for every neighbor
+    const double radius { static_cast<double>(kernel_radius) };
+    const float poly6_coefficient { static_cast<float>(315.0 / (64.0 * std::numbers::pi * std::pow(radius, 9.0))) };
+    const float spiky_coefficient { static_cast<float>(45.0 / (std::numbers::pi * std::pow(radius, 6.0))) };
+
     const Params params
     {
         static_cast<std::uint32_t>(m_particle_count), delta_time, kernel_radius, particle_mass,
         rest_density, m_settings.stiffness, m_settings.viscosity, m_settings.damping,
         m_settings.gravity, cell_size, static_cast<std::uint32_t>(m_cells_x), static_cast<std::uint32_t>(m_cells_y),
-        static_cast<std::uint32_t>(m_cells_z), static_cast<std::uint32_t>(m_cell_count), 0.0f, 0.0f,
+        static_cast<std::uint32_t>(m_cells_z), static_cast<std::uint32_t>(m_cell_count), poly6_coefficient, spiky_coefficient,
         { m_bounds_min.x, m_bounds_min.y, m_bounds_min.z, 0.0f },
         { m_bounds_max.x, m_bounds_max.y, m_bounds_max.z, 0.0f }
     };

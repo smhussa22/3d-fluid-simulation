@@ -20,8 +20,8 @@ cbuffer Params : register(b0)
 
     uint cells_z;            // grid cells along z
     uint cell_count;         // total grid cells
-    float padding_a;         // unused
-    float padding_b;         // unused
+    float poly6_coefficient; // 315 / (64 pi h^9), worked out once on the CPU
+    float spiky_coefficient; // 45 / (pi h^6), shared by the pressure and viscosity kernels
 
     float4 bounds_min;       // tank minimum corner (w unused)
     float4 bounds_max;       // tank maximum corner (w unused)
@@ -54,7 +54,7 @@ float poly6(float distance_squared)
     }
 
     const float diff = radius_squared - distance_squared;
-    return (315.0f / (64.0f * PI * (radius_squared * radius_squared * radius_squared * radius_squared * kernel_radius))) * diff * diff * diff;
+    return poly6_coefficient * diff * diff * diff;
 }
 
 // magnitude of the pressure kernel's gradient at a distance (0 beyond the kernel radius)
@@ -67,7 +67,7 @@ float spiky_gradient(float distance)
     }
 
     const float diff = kernel_radius - distance;
-    return (45.0f / (PI * (radius_squared * radius_squared * radius_squared))) * diff * diff;
+    return spiky_coefficient * diff * diff;
 }
 
 // the viscosity kernel's Laplacian at a distance (0 beyond the kernel radius)
@@ -79,5 +79,5 @@ float viscosity_laplacian(float distance)
         return 0.0f;
     }
 
-    return (45.0f / (PI * (radius_squared * radius_squared * radius_squared))) * (kernel_radius - distance);
+    return spiky_coefficient * (kernel_radius - distance);
 }

@@ -9,6 +9,7 @@
 
 #include <DirectXMath.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -53,6 +54,18 @@ public:
     // how many particles there are
     std::size_t particle_count() const;
 
+    // how many compute passes make up one step
+    static constexpr std::size_t pass_count { 9uz };
+
+    // the name of each pass, in the order they run
+    static constexpr std::array<const char*, pass_count> pass_names { "clear", "count", "scan", "scatter", "reorder", "density", "pressure", "forces", "integrate" };
+
+    // when on, step() records GPU timestamps around every pass (slightly slower, for profiling only)
+    void set_profiling(bool profiling);
+
+    // waits for the last profiled step and returns how long each pass took on the GPU, in milliseconds
+    std::array<double, pass_count> read_pass_times(const Graphics& graphics) const;
+
     // copies the particle positions back to the CPU (slow; for checking results and debugging only)
     std::vector<::DirectX::XMFLOAT4> read_positions(const Graphics& graphics) const;
 
@@ -83,8 +96,8 @@ private:
 
         std::uint32_t cells_z;        // grid cells along z
         std::uint32_t cell_count;     // total grid cells
-        float padding_a;              // unused, rounds the row up to 16 bytes
-        float padding_b;              // unused, rounds the row up to 16 bytes
+        float poly6_coefficient;      // 315 / (64 pi h^9), worked out once here so the shaders do not repeat it for every neighbor
+        float spiky_coefficient;      // 45 / (pi h^6), shared by the pressure and viscosity kernels
 
         ::DirectX::XMFLOAT4 bounds_min; // tank minimum corner (w unused)
         ::DirectX::XMFLOAT4 bounds_max; // tank maximum corner (w unused)
@@ -119,6 +132,8 @@ private:
     // per-particle data (one element per particle)
     std::unique_ptr<Buffer> m_positions {};      // float4 positions (the renderer also reads this)
     std::unique_ptr<Buffer> m_velocities {};     // float4 velocities (w unused)
+    std::unique_ptr<Buffer> m_positions_sorted {};  // scratch copy of positions, filled in cell order each step then swapped with m_positions
+    std::unique_ptr<Buffer> m_velocities_sorted {}; // scratch copy of velocities, filled in cell order each step then swapped with m_velocities
     std::unique_ptr<Buffer> m_densities {};      // float density of each particle
     std::unique_ptr<Buffer> m_pressures {};      // float pressure of each particle
     std::unique_ptr<Buffer> m_accelerations {};  // float4 acceleration of each particle from pressure and viscosity
@@ -130,6 +145,11 @@ private:
     std::unique_ptr<Buffer> m_cell_start {};  // uint where each cell's particles begin in m_sorted_indices (one extra entry marks the end)
     std::unique_ptr<Buffer> m_cell_fill {};   // uint next free slot in each cell while particles are being sorted (atomic adds)
 
+    // GPU timing (only used while profiling)
+    bool m_profiling { false }; // whether step() records timestamps
+    std::array<::Microsoft::WRL::ComPtr<::ID3D11Query>, pass_count + 1uz> m_timestamps {}; // a GPU clock reading before the first pass and after each pass
+    ::Microsoft::WRL::ComPtr<::ID3D11Query> m_timestamp_disjoint {}; // tells us the clock frequency and whether the readings can be trusted
+
     // the values shared by every pass
     std::unique_ptr<ConstantBuffer> m_params {}; // holds a Params, rewritten at the start of each step
 
@@ -138,6 +158,7 @@ private:
     std::unique_ptr<Shader> m_count_cells_shader {}; // finds each particle's cell and counts particles per cell
     std::unique_ptr<Shader> m_prefix_sum_shader {};  // turns the counts into cell start positions
     std::unique_ptr<Shader> m_scatter_shader {};     // writes particle indices into their cell's slots
+    std::unique_ptr<Shader> m_reorder_shader {};     // copies the particles into cell order so neighbors sit next to each other in memory
     std::unique_ptr<Shader> m_density_shader {};     // computes every particle's density
     std::unique_ptr<Shader> m_pressure_shader {};    // computes every particle's pressure from its density
     std::unique_ptr<Shader> m_forces_shader {};      // computes pressure and viscosity accelerations

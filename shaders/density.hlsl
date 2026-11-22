@@ -1,11 +1,10 @@
 #include "common.hlsli"
 
 StructuredBuffer<float4> positions : register(t0);
-StructuredBuffer<uint> sorted_indices : register(t1);
-StructuredBuffer<uint> cell_start : register(t2);
+StructuredBuffer<uint> cell_start : register(t1);
 RWStructuredBuffer<float> densities : register(u0);
 
-// one thread per particle: sum the kernel contributions of every particle in the 27 surrounding cells (including itself)
+// one thread per particle (the arrays are already sorted by cell, so slot k in a cell is just positions[k]): sum the kernel contributions of every particle in the 27 surrounding cells (including itself)
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
@@ -49,7 +48,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
                 for (uint k = cell_start[cell]; k < cell_start[cell + 1]; ++k)
                 {
-                    const float3 offset = position - positions[sorted_indices[k]].xyz;
+                    const float3 offset = position - positions[k].xyz;
                     density += particle_mass * poly6(dot(offset, offset));
                 }
             }

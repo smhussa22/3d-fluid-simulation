@@ -4,8 +4,7 @@ StructuredBuffer<float4> positions : register(t0);
 StructuredBuffer<float4> velocities : register(t1);
 StructuredBuffer<float> densities : register(t2);
 StructuredBuffer<float> pressures : register(t3);
-StructuredBuffer<uint> sorted_indices : register(t4);
-StructuredBuffer<uint> cell_start : register(t5);
+StructuredBuffer<uint> cell_start : register(t4);
 RWStructuredBuffer<float4> accelerations : register(u0);
 
 // one thread per particle: add up the pressure push and the viscosity drag from every neighbor, then turn the force into an acceleration
@@ -54,7 +53,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
                 for (uint k = cell_start[cell]; k < cell_start[cell + 1]; ++k)
                 {
-                    const uint j = sorted_indices[k];
+                    const uint j = k; // the arrays are sorted by cell, so slot k is particle k
 
                     if (j == i)
                     {
