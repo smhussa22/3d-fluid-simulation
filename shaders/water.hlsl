@@ -2,7 +2,7 @@
 #include "scene_common.hlsli"
 
 Texture2D<float4> normal_texture : register(t0);     // xyz = surface normal in camera space, w = 1 where there is water
-Texture2D<float> thickness_texture : register(t1);   // how much water the view passes through, in meters
+Texture2D<float2> thickness_texture : register(t1);  // x = how much water the view passes through, in meters; y = that thickness weighted by foam (y / x = average foam)
 Texture2D<float4> background_texture : register(t2); // the scene without water
 
 cbuffer ParticleParams : register(b2)
@@ -13,6 +13,9 @@ cbuffer ParticleParams : register(b2)
     float thickness_fade; // water thinner than this many particle diameters fades out
     float4 light_direction; // xyz = the direction pointing toward the light
     float4 particle_color;  // rgb = base color of the water (used as the deep-water color)
+    float foam_speed;
+    float foam_amount;      // how white thin, fast water gets
+    float2 padding_foam;
 };
 
 cbuffer NormalParams : register(b3)
@@ -50,7 +53,9 @@ float4 ps_main(float4 position : SV_Position) : SV_Target
     }
 
     const float3 normal = surface.xyz;
-    const float thickness = thickness_texture.Load(int3(pixel, 0));
+    const float2 thickness_and_foam = thickness_texture.Load(int3(pixel, 0));
+    const float thickness = thickness_and_foam.x;
+    const float foam = thickness_and_foam.y / max(thickness_and_foam.x, 1e-5f);
 
     // the direction of the line of sight through this pixel, in camera space (x right, y up, z forward), pointing from the camera into the scene
     const float2 ndc = float2(position.x / screen_size.x * 2.0f - 1.0f, 1.0f - position.y / screen_size.y * 2.0f);
@@ -92,10 +97,10 @@ float4 ps_main(float4 position : SV_Position) : SV_Target
 
     float3 color = lerp(refracted, mirrored, fresnel) + specular;
 
-    // thin water (a sheet or a splash tip, about a particle or two across) is see-through and whitish; thick water is solid
+    // thin water (a sheet or a splash tip, about a particle or two across) is see-through; it turns white only where it is also fast (foam), so still edges stay clear
     const float diameter = 2.0f * particle_radius;
     const float solid = smoothstep(0.5f * diameter, thickness_fade * diameter, thickness);
-    color = lerp(background + (1.0f - solid) * 0.4f, color, solid);
+    color = lerp(background + (1.0f - solid) * foam * foam_amount, color, solid);
 
     return float4(color, 1.0f);
 }

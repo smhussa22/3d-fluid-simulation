@@ -26,6 +26,8 @@ public:
         float spray_threshold { 0.3f };      // particles whose density is below this fraction of the rest density count as spray, not surface
         float spray_size { 0.5f };           // radius of a drawn spray droplet, in particle radii
         float thickness_fade { 3.0f };       // water thinner than this many particle diameters fades toward transparent and white
+        float foam_speed { 2.0f };           // particle speed in m/s where foam starts (full foam at twice this)
+        float foam_amount { 0.8f };          // how white thin, fast water gets
 
     };
 

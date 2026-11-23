@@ -55,6 +55,9 @@ public:
     // the GPU buffer of particle densities (float, same order as the positions); the renderer reads this to tell dense water from sparse spray
     const Buffer& density_buffer() const;
 
+    // the GPU buffer of particle velocities (float4, w unused, same order as the positions); the renderer reads this to find how fast each particle moves (for foam)
+    const Buffer& velocity_buffer() const;
+
     // how many particles there are
     std::size_t particle_count() const;
 

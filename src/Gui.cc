@@ -86,6 +86,10 @@ bool Gui::drawControls(Simulation::Settings& settings, ViewOptions& view)
         ::ImGui::SliderFloat("Spray size (radii)", &view.spray_size, 0.1f, 1.5f, "%.2f");
         ::ImGui::SliderFloat("Thin water fade (diameters)", &view.thickness_fade, 0.5f, 8.0f, "%.1f");
 
+        // foam: how fast water must move to foam, and how white it gets
+        ::ImGui::SliderFloat("Foam speed (m/s)", &view.foam_speed, 0.2f, 10.0f, "%.1f");
+        ::ImGui::SliderFloat("Foam amount", &view.foam_amount, 0.0f, 1.5f, "%.2f");
+
         if (::ImGui::Button("Reset (R)"))
         {
 

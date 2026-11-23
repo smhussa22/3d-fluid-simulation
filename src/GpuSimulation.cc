@@ -187,6 +187,13 @@ const Buffer& GpuSimulation::density_buffer() const
 
 }
 
+const Buffer& GpuSimulation::velocity_buffer() const
+{
+
+    return *m_velocities;
+
+}
+
 float GpuSimulation::kernel_radius() const
 {
 

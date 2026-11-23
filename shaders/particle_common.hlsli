@@ -1,5 +1,6 @@
 StructuredBuffer<float4> positions : register(t0);
 StructuredBuffer<float> densities : register(t1); // same order as positions
+StructuredBuffer<float4> velocities : register(t2); // same order as positions (xyz = velocity in m/s)
 
 #include "camera_common.hlsli"
 
@@ -11,6 +12,9 @@ cbuffer ParticleParams : register(b2)
     float thickness_fade;   // water thinner than this many particle diameters fades out
     float4 light_direction; // xyz = the direction pointing toward the light
     float4 particle_color;  // rgb = base color of the water
+    float foam_speed;       // particle speed in m/s where foam starts (full foam at twice this)
+    float foam_amount;      // how white thin, fast water gets (used by the water shader)
+    float2 padding_foam;
 };
 
 struct VertexOutput
@@ -19,6 +23,7 @@ struct VertexOutput
     float2 uv : TEXCOORD0;      // position within the quad, from -1 to 1 on each axis
     float3 center : TEXCOORD1;  // the particle's center in the world
     float density_ratio : TEXCOORD2; // the particle's density as a fraction of the rest density (about 1 inside water, lower at the surface, near 0 for stray droplets)
+    float speed : TEXCOORD3;    // how fast the particle is moving, in m/s
 };
 
 // the four corners of a quad, ordered so a triangle strip made of them faces the camera
@@ -47,6 +52,7 @@ VertexOutput vs_main(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
     output.uv = uv;
     output.center = center;
     output.density_ratio = density_ratio;
+    output.speed = length(velocities[instance].xyz);
     return output;
 }
 

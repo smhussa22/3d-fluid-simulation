@@ -168,7 +168,7 @@ try
     normal_params_buffer.write(graphics, &normal_params);
 
     // the water look: a texture of how much water the view passes through, a texture of the scene behind the water (floor and sky), and the shaders that make them and combine everything
-    RenderTarget thickness_target { graphics, window.width(), window.height(), DXGI_FORMAT_R16_FLOAT };
+    RenderTarget thickness_target { graphics, window.width(), window.height(), DXGI_FORMAT_R16G16_FLOAT };
     RenderTarget background_target { graphics, window.width(), window.height(), DXGI_FORMAT_R8G8B8A8_UNORM };
     RenderShader thickness_shader { graphics, L"shaders/particle_thickness.hlsl" };
     RenderShader background_shader { graphics, L"shaders/background.hlsl" };
@@ -259,6 +259,9 @@ try
         float thickness_fade;               // water thinner than this many particle diameters fades out
         ::DirectX::XMFLOAT4 light_direction; // direction toward the light (xyz)
         ::DirectX::XMFLOAT4 color;           // base color of the water (rgb)
+        float foam_speed;                    // particle speed where foam starts, in m/s
+        float foam_amount;                   // how white thin, fast water gets
+        float padding[2];                    // fills the last 16 bytes
 
     };
 
@@ -345,7 +348,8 @@ try
         // everything the sphere passes share: the particle positions, the camera, and the sphere settings
         ::ID3D11ShaderResourceView* srv { simulation.position_buffer().shader_resource_view() };
         ::ID3D11ShaderResourceView* density_srv { simulation.density_buffer().shader_resource_view() };
-        const ParticleParams particle_params { particle_radius, view.spray_threshold, view.spray_size, view.thickness_fade, { 0.4f, 0.8f, 0.45f, 0.0f }, { 0.25f, 0.55f, 1.0f, 1.0f } };
+        ::ID3D11ShaderResourceView* velocity_srv { simulation.velocity_buffer().shader_resource_view() };
+        const ParticleParams particle_params { particle_radius, view.spray_threshold, view.spray_size, view.thickness_fade, { 0.4f, 0.8f, 0.45f, 0.0f }, { 0.25f, 0.55f, 1.0f, 1.0f }, view.foam_speed, view.foam_amount, { 0.0f, 0.0f } };
         particle_params_buffer.write(graphics, &particle_params);
         camera_buffer.bind_vertex(graphics, 0u);
         camera_buffer.bind_pixel(graphics, 0u);
@@ -353,6 +357,7 @@ try
         particle_params_buffer.bind_pixel(graphics, 2u);
         graphics.context()->VSSetShaderResources(0u, 1u, &srv);
         graphics.context()->VSSetShaderResources(1u, 1u, &density_srv);
+        graphics.context()->VSSetShaderResources(2u, 1u, &velocity_srv);
         graphics.context()->IASetInputLayout(nullptr);
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
