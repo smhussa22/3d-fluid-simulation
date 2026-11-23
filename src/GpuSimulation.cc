@@ -7,13 +7,18 @@
 
 #include "check.hh"
 
-GpuSimulation::GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XMFLOAT4> positions, const ::DirectX::XMFLOAT3& bounds_min, const ::DirectX::XMFLOAT3& bounds_max) : m_particle_count { positions.size() }, m_initial_positions { std::move(positions) }, m_bounds_min { bounds_min }, m_bounds_max { bounds_max }
+GpuSimulation::GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XMFLOAT4> positions, const ::DirectX::XMFLOAT3& bounds_min, const ::DirectX::XMFLOAT3& bounds_max, float particle_spacing) : m_particle_count { positions.size() }, m_initial_positions { std::move(positions) }, m_bounds_min { bounds_min }, m_bounds_max { bounds_max }
 {
 
+    // everything that depends on how big the particles are
+    m_kernel_radius = 2.0f * particle_spacing;
+    m_cell_size = m_kernel_radius;
+    m_particle_mass = rest_density * particle_spacing * particle_spacing * particle_spacing;
+
     // size the neighbor search grid to fit the tank
-    m_cells_x = std::max(1, static_cast<int>(std::ceil((m_bounds_max.x - m_bounds_min.x) / cell_size)));
-    m_cells_y = std::max(1, static_cast<int>(std::ceil((m_bounds_max.y - m_bounds_min.y) / cell_size)));
-    m_cells_z = std::max(1, static_cast<int>(std::ceil((m_bounds_max.z - m_bounds_min.z) / cell_size)));
+    m_cells_x = std::max(1, static_cast<int>(std::ceil((m_bounds_max.x - m_bounds_min.x) / m_cell_size)));
+    m_cells_y = std::max(1, static_cast<int>(std::ceil((m_bounds_max.y - m_bounds_min.y) / m_cell_size)));
+    m_cells_z = std::max(1, static_cast<int>(std::ceil((m_bounds_max.z - m_bounds_min.z) / m_cell_size)));
     m_cell_count = static_cast<std::size_t>(m_cells_x) * static_cast<std::size_t>(m_cells_y) * static_cast<std::size_t>(m_cells_z);
 
     // per-particle buffers: positions start from the given values, everything else starts zeroed
@@ -175,6 +180,13 @@ const Buffer& GpuSimulation::position_buffer() const
 
 }
 
+float GpuSimulation::kernel_radius() const
+{
+
+    return m_kernel_radius;
+
+}
+
 std::size_t GpuSimulation::particle_count() const
 {
 
@@ -253,15 +265,15 @@ void GpuSimulation::_update_params(const Graphics& graphics, float delta_time)
 {
 
     // the kernel constants only depend on the kernel radius, so work them out here once instead of in every thread for every neighbor
-    const double radius { static_cast<double>(kernel_radius) };
+    const double radius { static_cast<double>(m_kernel_radius) };
     const float poly6_coefficient { static_cast<float>(315.0 / (64.0 * std::numbers::pi * std::pow(radius, 9.0))) };
     const float spiky_coefficient { static_cast<float>(45.0 / (std::numbers::pi * std::pow(radius, 6.0))) };
 
     const Params params
     {
-        static_cast<std::uint32_t>(m_particle_count), delta_time, kernel_radius, particle_mass,
+        static_cast<std::uint32_t>(m_particle_count), delta_time, m_kernel_radius, m_particle_mass,
         rest_density, m_settings.stiffness, m_settings.viscosity, m_settings.damping,
-        m_settings.gravity, cell_size, static_cast<std::uint32_t>(m_cells_x), static_cast<std::uint32_t>(m_cells_y),
+        m_settings.gravity, m_cell_size, static_cast<std::uint32_t>(m_cells_x), static_cast<std::uint32_t>(m_cells_y),
         static_cast<std::uint32_t>(m_cells_z), static_cast<std::uint32_t>(m_cell_count), poly6_coefficient, spiky_coefficient,
         { m_bounds_min.x, m_bounds_min.y, m_bounds_min.z, 0.0f },
         { m_bounds_max.x, m_bounds_max.y, m_bounds_max.z, 0.0f }

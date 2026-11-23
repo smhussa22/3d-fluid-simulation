@@ -43,6 +43,7 @@ try
 
     // "--particles N" fills a tank with a cube of about N particles (n x n x n), dropped from a little above the floor; with no argument the small default block is used
     int requested_particles { 0 };
+    float particle_spacing { 0.1f }; // how far apart the particles start, in meters; smaller = smaller particles = finer water (needs more particles to fill the same volume)
 
     for (int i { 1 }; i + 1 < argc; ++i)
     {
@@ -51,6 +52,13 @@ try
         {
 
             requested_particles = std::stoi(argv[i + 1]);
+
+        }
+
+        if (std::string_view { argv[i] } == "--spacing")
+        {
+
+            particle_spacing = std::stof(argv[i + 1]);
 
         }
 
@@ -78,7 +86,7 @@ try
     {
 
         const int side { std::max(1, static_cast<int>(std::lround(std::cbrt(static_cast<double>(requested_particles))))) };
-        Scenario scenario { make_scenario(side, 0.6f) };
+        Scenario scenario { make_scenario(side, 0.6f, particle_spacing) };
         points = std::move(scenario.points);
         bounds_min = scenario.bounds_min;
         bounds_max = scenario.bounds_max;
@@ -109,7 +117,9 @@ try
 
     // hand the starting positions to the GPU simulation, which keeps them in its own buffers
     const std::size_t particle_count { points.size() };
-    GpuSimulation simulation { graphics, std::move(points), bounds_min, bounds_max };
+    // how big each drawn sphere is: a bit bigger than half the spacing, so neighboring spheres overlap and fill the gaps between particles
+    const float particle_radius { 0.75f * particle_spacing };
+    GpuSimulation simulation { graphics, std::move(points), bounds_min, bounds_max, particle_spacing };
     RenderShader render_shader { graphics, L"shaders/particles.hlsl" };
 
     // the depth pass: the spheres drawn again, writing each pixel's distance from the camera into a texture (0 where there is no water); the debug shader shows that texture on screen
@@ -127,10 +137,11 @@ try
     {
 
         float direction[2];     // (1, 0) blurs along x, (0, 1) along y
-        int radius;             // pixels to reach out on each side
-        float spatial_sigma;    // weight falloff with pixel distance
+        float blur_radii;       // how far the blur reaches, in particle radii as they look on screen
         float depth_sigma;      // weight falloff with depth difference, in meters
-        float padding[3];       // fills the second 16 bytes
+        float particle_radius;  // world-space radius of one particle
+        float focal_pixels;     // pixels per meter at one meter distance
+        float padding[2];       // fills the second 16 bytes
 
     };
 
@@ -150,6 +161,7 @@ try
     };
 
     const float tan_half_fov_y { std::tan(::DirectX::XMConvertToRadians(Camera::fov_degrees) * 0.5f) };
+    const float focal_pixels { static_cast<float>(window.height()) / (2.0f * tan_half_fov_y) };
     const float aspect { static_cast<float>(window.width()) / static_cast<float>(window.height()) };
     const NormalParams normal_params { { tan_half_fov_y * aspect, tan_half_fov_y }, { static_cast<float>(window.width()), static_cast<float>(window.height()) } };
     ConstantBuffer normal_params_buffer { graphics, sizeof(NormalParams) };
@@ -178,7 +190,7 @@ try
     const auto blur_pass = [&](const RenderTarget& from, RenderTarget& to, float x, float y)
     {
 
-        const BlurParams params { { x, y }, view.blur_radius, view.blur_spatial_sigma, view.blur_depth_sigma, { 0.0f, 0.0f, 0.0f } };
+        const BlurParams params { { x, y }, view.blur_radii, view.blur_depth_radii * particle_radius, particle_radius, focal_pixels, { 0.0f, 0.0f } };
         blur_params_buffer.write(graphics, &params);
         graphics.set_render_target(to.render_target_view(), false);
 
@@ -247,13 +259,14 @@ try
 
     };
 
-    const ParticleParams particle_params { 0.1f, { 0.0f, 0.0f, 0.0f }, { 0.4f, 0.8f, 0.45f, 0.0f }, { 0.25f, 0.55f, 1.0f, 1.0f } };
+    const ParticleParams particle_params { particle_radius, { 0.0f, 0.0f, 0.0f }, { 0.4f, 0.8f, 0.45f, 0.0f }, { 0.25f, 0.55f, 1.0f, 1.0f } };
     ConstantBuffer particle_params_buffer { graphics, sizeof(ParticleParams) };
     particle_params_buffer.write(graphics, &particle_params);
     Gui gui { window, graphics };
 
     // the physics advances in fixed-size steps, however fast frames are drawn
-    constexpr double step_time { 1.0 / 480.0 };
+    // the largest safe step shrinks with the smoothing radius (a pressure wave must not cross more than a fraction of it per step): 0.3 * radius / sound speed, where the sound speed here is sqrt(stiffness)
+    const double step_time { std::min(1.0 / 480.0, 0.3 * static_cast<double>(simulation.kernel_radius()) / std::sqrt(static_cast<double>(simulation.settings().stiffness))) };
     double previous_time { window.time() };
     constexpr int max_steps_per_frame { 16 }; // if the physics falls behind, run slower than real time instead of spiraling
     double accumulator { 0.0 };

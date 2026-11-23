@@ -1,11 +1,11 @@
-﻿#ifndef SCENARIO_HH
+#ifndef SCENARIO_HH
 #define SCENARIO_HH
 
 #include <DirectXMath.h>
 
 #include <vector>
 
-// a cube of n x n x n particles, 0.1 m apart, in a tank just big enough to hold it (plus headroom above)
+// a cube of n x n x n particles, `spacing` meters apart (smaller spacing = smaller particles = finer detail), in a tank just big enough to hold it (plus headroom above)
 struct Scenario
 {
 
@@ -16,6 +16,6 @@ struct Scenario
 };
 
 // builds the scenario; lift raises the cube above the floor (0 = resting on it), and the tank grows to keep the same headroom above the cube
-Scenario make_scenario(int n, float lift = 0.0f);
+Scenario make_scenario(int n, float lift = 0.0f, float spacing = 0.1f);
 
 #endif // SCENARIO_HH

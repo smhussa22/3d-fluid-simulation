@@ -25,7 +25,8 @@ public:
     using Settings = Simulation::Settings;
 
     // creates every GPU buffer and uploads the starting positions; velocities start at zero
-    explicit GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XMFLOAT4> positions, const ::DirectX::XMFLOAT3& bounds_min = ::DirectX::XMFLOAT3 { -0.6f, -0.6f, -0.6f }, const ::DirectX::XMFLOAT3& bounds_max = ::DirectX::XMFLOAT3 { 0.6f, 0.6f, 0.6f });
+    // particle_spacing is how far apart the particles start; the smoothing radius, grid cell size and particle mass are all worked out from it, so smaller spacing means finer water
+    explicit GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XMFLOAT4> positions, const ::DirectX::XMFLOAT3& bounds_min = ::DirectX::XMFLOAT3 { -0.6f, -0.6f, -0.6f }, const ::DirectX::XMFLOAT3& bounds_max = ::DirectX::XMFLOAT3 { 0.6f, 0.6f, 0.6f }, float particle_spacing = 0.1f);
     ~GpuSimulation() = default;
 
     // the GPU buffers can't be copied
@@ -53,6 +54,9 @@ public:
 
     // how many particles there are
     std::size_t particle_count() const;
+
+    // the SPH smoothing radius, which is twice the particle spacing
+    float kernel_radius() const;
 
     // how many compute passes make up one step
     static constexpr std::size_t pass_count { 9uz };
@@ -106,12 +110,12 @@ private:
 
     static_assert(sizeof(Params) % 16 == 0, "constant buffers must be a multiple of 16 bytes");
 
-    static constexpr float kernel_radius { 0.2f };   // maximum distance at which two particles influence each other (SPH smoothing radius)
-    static constexpr float cell_size { kernel_radius }; // width of one grid cell; equal to the kernel radius so every neighbor is in the particle's cell or one of the 26 around it
-
-    // each particle's mass; 1.0 kg because particles are spaced 0.1m apart in each dimension, representing 0.001m^3 of water at 1000 kg/m^3
-    static constexpr float particle_mass { 1.0f };
-
+    // these three follow from the particle spacing (see the constructor): the smoothing radius is 2 x spacing (about 33 neighbors per particle),
+    // the grid cell is as wide as the smoothing radius so every neighbor is in the particle's cell or one of the 26 around it,
+    // and the mass is the rest density times the volume each particle fills, so the fluid starts at its rest density
+    float m_kernel_radius { 0.2f };  // maximum distance at which two particles influence each other (SPH smoothing radius)
+    float m_cell_size { 0.2f };      // width of one grid cell
+    float m_particle_mass { 1.0f };  // mass of one particle
     static constexpr float rest_density { 1000.0f }; // water has a density of 1000 kg per cubed metre
 
     std::size_t m_particle_count { 0uz }; // how many particles there are

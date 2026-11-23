@@ -78,9 +78,8 @@ bool Gui::drawControls(Simulation::Settings& settings, ViewOptions& view)
         ::ImGui::Checkbox("Show depth texture", &view.show_depth);
         ::ImGui::Checkbox("Show normals", &view.show_normals);
         ::ImGui::Checkbox("Blur depth", &view.blur_enabled);
-        ::ImGui::SliderInt("Blur radius", &view.blur_radius, 1, 32);
-        ::ImGui::SliderFloat("Blur spatial sigma", &view.blur_spatial_sigma, 0.5f, 16.0f, "%.1f");
-        ::ImGui::SliderFloat("Blur depth sigma", &view.blur_depth_sigma, 0.005f, 0.5f, "%.3f", ImGuiSliderFlags_Logarithmic);
+        ::ImGui::SliderFloat("Blur size (particle radii)", &view.blur_radii, 0.5f, 8.0f, "%.1f");
+        ::ImGui::SliderFloat("Blur depth range (radii)", &view.blur_depth_radii, 0.1f, 4.0f, "%.2f");
 
         if (::ImGui::Button("Reset (R)"))
         {

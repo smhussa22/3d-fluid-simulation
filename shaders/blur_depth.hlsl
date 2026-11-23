@@ -2,11 +2,12 @@ Texture2D<float> source : register(t0); // the depth image to smooth (0 where th
 
 cbuffer BlurParams : register(b3)
 {
-    float2 direction;      // (1, 0) blurs along x, (0, 1) blurs along y
-    int radius;            // how many pixels to reach out on each side
-    float spatial_sigma;   // how quickly the weight falls off with pixel distance
-    float depth_sigma;     // how quickly the weight falls off with difference in depth, in meters
-    float3 padding;
+    float2 direction;       // (1, 0) blurs along x, (0, 1) blurs along y
+    float blur_radii;       // how far the blur reaches, in particle radii as they look on screen
+    float depth_sigma;      // how quickly the weight falls off with difference in depth, in meters
+    float particle_radius;  // world-space radius of one particle, in meters
+    float focal_pixels;     // how many pixels one meter spans at a distance of one meter
+    float2 padding;
 };
 
 // one big triangle that covers the whole screen, with no vertex buffer
@@ -30,10 +31,16 @@ float ps_main(float4 position : SV_Position) : SV_Target
         return 0.0f;
     }
 
+    // a particle looks smaller the farther away it is, so the blur shrinks with distance and with particle size:
+    // reach out blur_radii particle radii as they appear on screen at this depth (at most 48 pixels)
+    const float pixel_radius = clamp(blur_radii * particle_radius * focal_pixels / center_depth, 1.0f, 48.0f);
+    const int reach = (int)ceil(pixel_radius);
+    const float spatial_sigma = max(pixel_radius * 0.5f, 0.5f);
+
     float weighted_sum = 0.0f;
     float weight_total = 0.0f;
 
-    for (int i = -radius; i <= radius; ++i)
+    for (int i = -reach; i <= reach; ++i)
     {
         // Load returns 0 outside the screen, which is skipped below like any other pixel without water
         const float neighbor_depth = source.Load(int3(center_pixel + int2(direction) * i, 0));
