@@ -173,6 +173,7 @@ try
     RenderShader thickness_shader { graphics, L"shaders/particle_thickness.hlsl" };
     RenderShader background_shader { graphics, L"shaders/background.hlsl" };
     RenderShader water_shader { graphics, L"shaders/water.hlsl" };
+    RenderShader spray_shader { graphics, L"shaders/spray.hlsl" };
 
     struct WaterParams
     {
@@ -462,6 +463,14 @@ try
 
             ::ID3D11ShaderResourceView* no_inputs[3] { nullptr, nullptr, nullptr };
             graphics.context()->PSSetShaderResources(0u, 3u, no_inputs);
+
+            // spray: the sparse particles, drawn as soft white puffs added onto the finished picture (no depth, so they never hide anything)
+            graphics.bind_back_buffer(false);
+            graphics.set_additive_blending(true);
+            graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+            spray_shader.use(graphics);
+            graphics.context()->DrawInstanced(4u, static_cast<::UINT>(particle_count), 0u, 0u);
+            graphics.set_additive_blending(false);
             graphics.bind_back_buffer();
 
         }

@@ -30,14 +30,23 @@ VertexOutput vs_main(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
     const float3 center = positions[instance].xyz;
     const float2 uv = corners[vertex];
 
+    const float density_ratio = densities[instance] / 1000.0f; // shortcut: rest density hard-coded (GpuSimulation::rest_density), pass it in if it ever changes
+
+#ifdef SPRAY_PASS
+    // the spray pass draws only the sparse particles, at the droplet size; dense ones get a zero-size quad that makes no pixels
+    const float radius = density_ratio < spray_threshold ? spray_size * particle_radius : 0.0f;
+#else
+    const float radius = particle_radius;
+#endif
+
     // slide the corner sideways and up along the camera's own axes, so the quad always faces the camera
-    const float3 world = center + (camera_right.xyz * uv.x + camera_up.xyz * uv.y) * particle_radius;
+    const float3 world = center + (camera_right.xyz * uv.x + camera_up.xyz * uv.y) * radius;
 
     VertexOutput output;
     output.position = mul(float4(world, 1.0f), view_projection);
     output.uv = uv;
     output.center = center;
-    output.density_ratio = densities[instance] / 1000.0f; // shortcut: rest density hard-coded (GpuSimulation::rest_density), pass it in if it ever changes
+    output.density_ratio = density_ratio;
     return output;
 }
 
