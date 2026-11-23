@@ -180,6 +180,13 @@ const Buffer& GpuSimulation::position_buffer() const
 
 }
 
+const Buffer& GpuSimulation::density_buffer() const
+{
+
+    return *m_densities;
+
+}
+
 float GpuSimulation::kernel_radius() const
 {
 

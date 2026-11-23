@@ -253,15 +253,15 @@ try
     {
 
         float radius;                       // world-space radius of each drawn sphere
-        float padding[3];                   // fills the first 16 bytes
+        float spray_threshold;              // density (as a fraction of rest density) below which a particle is spray
+        float spray_size;                   // radius of a drawn spray droplet, in particle radii
+        float thickness_fade;               // water thinner than this many particle diameters fades out
         ::DirectX::XMFLOAT4 light_direction; // direction toward the light (xyz)
         ::DirectX::XMFLOAT4 color;           // base color of the water (rgb)
 
     };
 
-    const ParticleParams particle_params { particle_radius, { 0.0f, 0.0f, 0.0f }, { 0.4f, 0.8f, 0.45f, 0.0f }, { 0.25f, 0.55f, 1.0f, 1.0f } };
     ConstantBuffer particle_params_buffer { graphics, sizeof(ParticleParams) };
-    particle_params_buffer.write(graphics, &particle_params);
     Gui gui { window, graphics };
 
     // the physics advances in fixed-size steps, however fast frames are drawn
@@ -343,11 +343,15 @@ try
 
         // everything the sphere passes share: the particle positions, the camera, and the sphere settings
         ::ID3D11ShaderResourceView* srv { simulation.position_buffer().shader_resource_view() };
+        ::ID3D11ShaderResourceView* density_srv { simulation.density_buffer().shader_resource_view() };
+        const ParticleParams particle_params { particle_radius, view.spray_threshold, view.spray_size, view.thickness_fade, { 0.4f, 0.8f, 0.45f, 0.0f }, { 0.25f, 0.55f, 1.0f, 1.0f } };
+        particle_params_buffer.write(graphics, &particle_params);
         camera_buffer.bind_vertex(graphics, 0u);
         camera_buffer.bind_pixel(graphics, 0u);
         particle_params_buffer.bind_vertex(graphics, 2u);
         particle_params_buffer.bind_pixel(graphics, 2u);
         graphics.context()->VSSetShaderResources(0u, 1u, &srv);
+        graphics.context()->VSSetShaderResources(1u, 1u, &density_srv);
         graphics.context()->IASetInputLayout(nullptr);
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 

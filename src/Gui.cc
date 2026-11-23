@@ -81,6 +81,11 @@ bool Gui::drawControls(Simulation::Settings& settings, ViewOptions& view)
         ::ImGui::SliderFloat("Blur size (particle radii)", &view.blur_radii, 0.5f, 8.0f, "%.1f");
         ::ImGui::SliderFloat("Blur depth range (radii)", &view.blur_depth_radii, 0.1f, 4.0f, "%.2f");
 
+        // spray: how sparse a particle must be to leave the surface, how big its droplet is, and how thin water fades out
+        ::ImGui::SliderFloat("Spray threshold (density)", &view.spray_threshold, 0.0f, 0.6f, "%.2f");
+        ::ImGui::SliderFloat("Spray size (radii)", &view.spray_size, 0.1f, 1.5f, "%.2f");
+        ::ImGui::SliderFloat("Thin water fade (diameters)", &view.thickness_fade, 0.5f, 8.0f, "%.1f");
+
         if (::ImGui::Button("Reset (R)"))
         {
 

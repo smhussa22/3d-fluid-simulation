@@ -52,6 +52,9 @@ public:
     // the GPU buffer of particle positions (float4, w = 1); the renderer reads this directly
     const Buffer& position_buffer() const;
 
+    // the GPU buffer of particle densities (float, same order as the positions); the renderer reads this to tell dense water from sparse spray
+    const Buffer& density_buffer() const;
+
     // how many particles there are
     std::size_t particle_count() const;
 

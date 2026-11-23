@@ -1,11 +1,14 @@
 StructuredBuffer<float4> positions : register(t0);
+StructuredBuffer<float> densities : register(t1); // same order as positions
 
 #include "camera_common.hlsli"
 
 cbuffer ParticleParams : register(b2)
 {
-    float particle_radius; // world-space radius of each drawn sphere
-    float3 padding;
+    float particle_radius;  // world-space radius of each drawn sphere
+    float spray_threshold;  // density (as a fraction of rest density) below which a particle is spray
+    float spray_size;       // radius of a drawn spray droplet, in particle radii
+    float thickness_fade;   // water thinner than this many particle diameters fades out
     float4 light_direction; // xyz = the direction pointing toward the light
     float4 particle_color;  // rgb = base color of the water
 };
@@ -15,6 +18,7 @@ struct VertexOutput
     float4 position : SV_Position;
     float2 uv : TEXCOORD0;      // position within the quad, from -1 to 1 on each axis
     float3 center : TEXCOORD1;  // the particle's center in the world
+    float density_ratio : TEXCOORD2; // the particle's density as a fraction of the rest density (about 1 inside water, lower at the surface, near 0 for stray droplets)
 };
 
 // the four corners of a quad, ordered so a triangle strip made of them faces the camera
@@ -33,6 +37,7 @@ VertexOutput vs_main(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
     output.position = mul(float4(world, 1.0f), view_projection);
     output.uv = uv;
     output.center = center;
+    output.density_ratio = densities[instance] / 1000.0f; // shortcut: rest density hard-coded (GpuSimulation::rest_density), pass it in if it ever changes
     return output;
 }
 

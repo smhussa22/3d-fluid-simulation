@@ -8,7 +8,9 @@ Texture2D<float4> background_texture : register(t2); // the scene without water
 cbuffer ParticleParams : register(b2)
 {
     float particle_radius;
-    float3 padding_a;
+    float spray_threshold;
+    float spray_size;
+    float thickness_fade; // water thinner than this many particle diameters fades out
     float4 light_direction; // xyz = the direction pointing toward the light
     float4 particle_color;  // rgb = base color of the water (used as the deep-water color)
 };
@@ -88,5 +90,12 @@ float4 ps_main(float4 position : SV_Position) : SV_Target
     const float3 halfway = normalize(light - incident);
     const float specular = pow(saturate(dot(normal, halfway)), 160.0f) * 1.2f;
 
-    return float4(lerp(refracted, mirrored, fresnel) + specular, 1.0f);
+    float3 color = lerp(refracted, mirrored, fresnel) + specular;
+
+    // thin water (a sheet or a splash tip, about a particle or two across) is see-through and whitish; thick water is solid
+    const float diameter = 2.0f * particle_radius;
+    const float solid = smoothstep(0.5f * diameter, thickness_fade * diameter, thickness);
+    color = lerp(background + (1.0f - solid) * 0.4f, color, solid);
+
+    return float4(color, 1.0f);
 }

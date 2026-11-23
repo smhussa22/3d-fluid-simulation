@@ -23,6 +23,9 @@ public:
         bool blur_enabled { true };          // smooth the depth texture before showing or using it
         float blur_radii { 2.5f };           // how far the blur reaches, in particle radii as they look on screen (so it scales with particle size and distance)
         float blur_depth_radii { 1.5f };     // how different two depths can be, in particle radii, and still be blended together
+        float spray_threshold { 0.3f };      // particles whose density is below this fraction of the rest density count as spray, not surface
+        float spray_size { 0.5f };           // radius of a drawn spray droplet, in particle radii
+        float thickness_fade { 3.0f };       // water thinner than this many particle diameters fades toward transparent and white
 
     };
 
