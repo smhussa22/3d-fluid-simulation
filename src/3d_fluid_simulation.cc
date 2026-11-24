@@ -181,7 +181,8 @@ try
         float refraction_strength;   // how far the background shifts behind thick, tilted water, in pixels
         float absorption_strength;   // how quickly water darkens and tints with thickness
         float floor_y;               // height of the floor (the bottom of the tank)
-        float padding;               // fills the 16 bytes
+        float time;                  // seconds since start, for the moving caustics
+        float tank_xz[4];            // the tank's footprint: min x, min z, max x, max z
 
     };
 
@@ -466,7 +467,7 @@ try
         {
 
             // the sky: the background shader with the floor pushed far out of sight, drawn straight into the window
-            const WaterParams sky_params { 0.0f, 0.0f, -100000.0f, 0.0f };
+            const WaterParams sky_params { 0.0f, 0.0f, -100000.0f, 0.0f, { 0.0f, 0.0f, 0.0f, 0.0f } };
             water_params_buffer.write(graphics, &sky_params);
             water_params_buffer.bind_pixel(graphics, 4u);
             normal_params_buffer.bind_pixel(graphics, 3u);
@@ -530,7 +531,7 @@ try
             graphics.set_additive_blending(false);
 
             // the settings the background and water shaders read
-            const WaterParams water_params { view.refraction_strength, view.absorption_strength, simulation.boundsMin().y, 0.0f };
+            const WaterParams water_params { view.refraction_strength, view.absorption_strength, simulation.boundsMin().y, static_cast<float>(window.time()), { simulation.boundsMin().x, simulation.boundsMin().z, simulation.boundsMax().x, simulation.boundsMax().z } };
             water_params_buffer.write(graphics, &water_params);
             water_params_buffer.bind_pixel(graphics, 4u);
             normal_params_buffer.bind_pixel(graphics, 3u);

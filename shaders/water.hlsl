@@ -29,7 +29,8 @@ cbuffer WaterParams : register(b4)
     float refraction_strength;  // how far the background shifts behind thick, tilted water, in pixels
     float absorption_strength;  // how quickly water darkens and tints with thickness
     float floor_y;
-    float padding_b;
+    float time;
+    float4 tank_xz;             // the tank's footprint: min x, min z, max x, max z (used by the background shader)
 };
 
 // one big triangle that covers the whole screen, with no vertex buffer
