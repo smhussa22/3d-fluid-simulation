@@ -273,6 +273,27 @@ try
     };
 
     ConstantBuffer particle_params_buffer { graphics, sizeof(ParticleParams) };
+
+    // the ocean: a big grid of quads (made in the vertex shader from the vertex number) pushed around by waves; the layout matches the OceanParams cbuffer in ocean.hlsl
+    struct OceanParams
+    {
+
+        float time;            // seconds since start
+        float wave_height;     // height of the biggest wave, trough to crest, in meters
+        float wavelength;      // distance between crests of the biggest wave, in meters
+        float choppiness;      // 0 = rounded waves, 1 = sharp crests
+        float wind_angle;      // direction the waves travel, in radians
+        float patch_extent;    // meters from the middle of the sea to each edge
+        float grid_cells;      // quads along each side of the sea mesh
+        float foam_amount;     // how bright the crest foam is
+        float foam_threshold;  // how pinched the surface must get before it foams
+        float padding[3];      // fills the last 16 bytes
+
+    };
+
+    constexpr float ocean_grid_cells { 512.0f };
+    RenderShader ocean_shader { graphics, L"shaders/ocean.hlsl" };
+    ConstantBuffer ocean_params_buffer { graphics, sizeof(OceanParams) };
     Gui gui { window, graphics };
 
     // the physics advances in fixed-size steps, however fast frames are drawn
@@ -454,6 +475,15 @@ try
             background_shader.use(graphics);
             graphics.context()->Draw(3u, 0u);
             graphics.bind_back_buffer();
+
+            // the sea: one draw of the whole grid, 6 vertices per quad
+            const OceanParams ocean_params { static_cast<float>(window.time()), 1.5f, 40.0f, 0.8f, 0.6f, 800.0f, ocean_grid_cells, 1.0f, 0.75f, { 0.0f, 0.0f, 0.0f } };
+            ocean_params_buffer.write(graphics, &ocean_params);
+            ocean_params_buffer.bind_vertex(graphics, 5u);
+            ocean_params_buffer.bind_pixel(graphics, 5u);
+            ocean_shader.use(graphics);
+            graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            graphics.context()->Draw(static_cast<::UINT>(ocean_grid_cells * ocean_grid_cells) * 6u, 0u);
 
         }
         else if (view.show_normals)
