@@ -71,6 +71,7 @@ GpuSimulation::GpuSimulation(const Graphics& graphics, std::vector<::DirectX::XM
 void GpuSimulation::step(const Graphics& graphics, float delta_time)
 {
 
+    m_time += static_cast<double>(delta_time);
     _update_params(graphics, delta_time);
 
     // every pass reads the same shared constants, in slot b0
@@ -149,6 +150,32 @@ void GpuSimulation::reset(const Graphics& graphics)
     const std::vector<::DirectX::XMFLOAT4> still(m_particle_count, ::DirectX::XMFLOAT4 { 0.0f, 0.0f, 0.0f, 0.0f });
     m_positions->write(graphics, m_initial_positions.data());
     m_velocities->write(graphics, still.data());
+    m_time = 0.0;
+
+}
+
+void GpuSimulation::set_beach(float start_x, float angle)
+{
+
+    m_has_beach = true;
+    m_beach_start = start_x;
+    m_beach_angle = angle;
+
+}
+
+float GpuSimulation::paddle_x() const
+{
+
+    const double phase { 2.0 * std::numbers::pi * m_time / static_cast<double>(m_paddle_period) };
+    return m_bounds_min.x + m_paddle_stroke * 0.5f * static_cast<float>(1.0 - std::cos(phase));
+
+}
+
+void GpuSimulation::set_wavemaker(float stroke, float period)
+{
+
+    m_paddle_stroke = stroke;
+    m_paddle_period = std::max(period, 0.1f);
 
 }
 
@@ -283,6 +310,10 @@ void GpuSimulation::_update_params(const Graphics& graphics, float delta_time)
     const float poly6_coefficient { static_cast<float>(315.0 / (64.0 * std::numbers::pi * std::pow(radius, 9.0))) };
     const float spiky_coefficient { static_cast<float>(45.0 / (std::numbers::pi * std::pow(radius, 6.0))) };
 
+    // the paddle slides out and back as a cosine, so it starts and ends at rest at the wall: position = stroke * (1 - cos) / 2, speed = its slope
+    const double phase { 2.0 * std::numbers::pi * m_time / static_cast<double>(m_paddle_period) };
+    const float paddle_speed { m_paddle_stroke * 0.5f * static_cast<float>(2.0 * std::numbers::pi / static_cast<double>(m_paddle_period) * std::sin(phase)) };
+
     const Params params
     {
         static_cast<std::uint32_t>(m_particle_count), delta_time, m_kernel_radius, m_particle_mass,
@@ -290,7 +321,9 @@ void GpuSimulation::_update_params(const Graphics& graphics, float delta_time)
         m_settings.gravity, m_cell_size, static_cast<std::uint32_t>(m_cells_x), static_cast<std::uint32_t>(m_cells_y),
         static_cast<std::uint32_t>(m_cells_z), static_cast<std::uint32_t>(m_cell_count), poly6_coefficient, spiky_coefficient,
         { m_bounds_min.x, m_bounds_min.y, m_bounds_min.z, 0.0f },
-        { m_bounds_max.x, m_bounds_max.y, m_bounds_max.z, 0.0f }
+        { m_bounds_max.x, m_bounds_max.y, m_bounds_max.z, 0.0f },
+        { m_beach_start, std::sin(m_beach_angle), std::cos(m_beach_angle), m_has_beach ? 1.0f : 0.0f },
+        { paddle_x(), paddle_speed, 0.0f, 0.0f }
     };
 
     m_params->write(graphics, &params);

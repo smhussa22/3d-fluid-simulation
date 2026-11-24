@@ -46,6 +46,15 @@ public:
     const ::DirectX::XMFLOAT3& boundsMin() const;
     const ::DirectX::XMFLOAT3& boundsMax() const;
 
+    // a sloped beach floor that rises from start_x at the given angle (radians) toward +x; with no call the floor is flat
+    void set_beach(float start_x, float angle);
+
+    // the wave-maker paddle at the low-x wall: it slides `stroke` meters along +x and back every `period` seconds (stroke 0 keeps it at the wall)
+    void set_wavemaker(float stroke, float period);
+
+    // where the paddle's face is along x right now
+    float paddle_x() const;
+
     // the live-tunable settings, so a UI can read and change them
     Settings& settings();
 
@@ -112,6 +121,9 @@ private:
         ::DirectX::XMFLOAT4 bounds_min; // tank minimum corner (w unused)
         ::DirectX::XMFLOAT4 bounds_max; // tank maximum corner (w unused)
 
+        ::DirectX::XMFLOAT4 beach;      // x = where the sloped floor starts, y = sin(angle), z = cos(angle), w = 1 if there is a beach
+        ::DirectX::XMFLOAT4 paddle;     // x = paddle face position along x, y = its speed along x (zw unused)
+
     };
 
     static_assert(sizeof(Params) % 16 == 0, "constant buffers must be a multiple of 16 bytes");
@@ -132,6 +144,13 @@ private:
     ::DirectX::XMFLOAT3 m_bounds_max {  0.6f,  0.6f,  0.6f };
 
     Settings m_settings {}; // the live-tunable values (changed from the controls panel)
+
+    bool m_has_beach { false };     // whether the floor slopes
+    float m_beach_start { 0.0f };   // x where the beach starts rising
+    float m_beach_angle { 0.0f };   // slope of the beach, in radians
+    float m_paddle_stroke { 0.0f }; // how far the wave-maker paddle slides, in meters
+    float m_paddle_period { 4.0f }; // seconds for the paddle to slide out and back
+    double m_time { 0.0 };          // simulated seconds since the start (or last reset), which drives the paddle
 
     // the neighbor search grid: the tank is cut into cells, and particles are sorted by cell
     int m_cells_x { 1 }; // number of grid cells along x

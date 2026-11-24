@@ -29,6 +29,32 @@ void main(uint3 id : SV_DispatchThreadID)
         velocity.x *= -damping;
     }
 
+    // the wave-maker paddle: a wall at the low-x end that slides along x; water it reaches is pushed along at the paddle's speed
+    if (position.x < paddle.x)
+    {
+        position.x = paddle.x;
+        velocity.x = max(velocity.x, paddle.y);
+    }
+
+    // the sloped beach: the floor rises from beach.x at the slope angle. the ground is only ever below a particle on the beach side, so one plane test covers it;
+    // a particle that dips under the plane is pushed back out along the plane's normal and its velocity into the plane is reversed (and weakened)
+    if (beach.w > 0.5f)
+    {
+        const float3 normal = float3(-beach.y, beach.z, 0.0f);
+        const float depth = dot(position - float3(beach.x, bounds_min.y, 0.0f), normal);
+
+        if (depth < 0.0f)
+        {
+            position -= normal * depth;
+            const float into_ground = dot(velocity, normal);
+
+            if (into_ground < 0.0f)
+            {
+                velocity -= (1.0f + damping) * into_ground * normal;
+            }
+        }
+    }
+
     if (position.x > bounds_max.x)
     {
         position.x = bounds_max.x;

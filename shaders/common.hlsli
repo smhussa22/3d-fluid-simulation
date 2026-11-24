@@ -25,6 +25,9 @@ cbuffer Params : register(b0)
 
     float4 bounds_min;       // tank minimum corner (w unused)
     float4 bounds_max;       // tank maximum corner (w unused)
+
+    float4 beach;            // x = where the sloped floor starts along x, y = sin(slope angle), z = cos(slope angle), w = 1 if there is a beach
+    float4 paddle;           // x = where the wave-maker paddle's face is along x, y = how fast it is moving along x (zw unused)
 };
 
 static const float PI = 3.14159265358979f;
