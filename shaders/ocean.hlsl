@@ -129,13 +129,28 @@ float4 ps_main(VertexOutput input) : SV_Target
     float jacobian;
     gerstner(input.parameter, wave_count, displacement, normal, jacobian);
 
-    // distance haze: far water fades into the same color the horizon has, which also hides the edge of the sea
-    const float3 to_point = input.world - camera_eye.xyz;
-    const float distance = length(to_point);
-    const float haze = 1.0f - exp(-pow(distance / 450.0f, 2.0f));
-    const float3 haze_color = sky_color(normalize(float3(to_point.x, 0.0f, to_point.z)));
+    // the direction from this point to the camera; far away, the smallest waves are less than a pixel wide and would sparkle and shimmer, so the surface is flattened with distance
+    const float3 to_eye = camera_eye.xyz - input.world;
+    const float distance = length(to_eye);
+    const float3 view = to_eye / distance;
+    normal = normalize(lerp(normal, float3(0.0f, 1.0f, 0.0f), 0.85f * smoothstep(80.0f, 500.0f, distance)));
 
-    // temporary shading: dark water lit by the sun, so the wave shapes show
-    const float light = 0.25f + 0.75f * saturate(dot(normal, sun_direction));
-    return float4(lerp(float3(0.03f, 0.16f, 0.24f) * light, haze_color, haze), 1.0f);
+    // Fresnel (Schlick's approximation): looking straight down you see into the water, looking along the surface you see the sky mirrored
+    const float cosine = saturate(dot(normal, view));
+    const float fresnel = 0.02f + 0.98f * pow(1.0f - cosine, 5.0f);
+
+    // what the surface mirrors: the sky in the reflected direction (flipped up if a steep wave points it below the horizon), plus a wider sun streak
+    float3 reflected = reflect(-view, normal);
+    reflected.y = abs(reflected.y);
+    const float3 mirrored = sky_color(reflected) + pow(saturate(dot(reflected, sun_direction)), 150.0f) * 0.8f * float3(1.0f, 0.85f, 0.6f);
+
+    // the water itself: dark blue in the troughs, greener and lighter on the crests where the light shines through thinner water
+    const float crest = saturate(input.world.y / max(wave_height, 0.1f) * 0.8f + 0.35f);
+    const float3 body = lerp(float3(0.01f, 0.06f, 0.10f), float3(0.06f, 0.30f, 0.30f), crest) * (0.4f + 0.6f * saturate(dot(normal, sun_direction)));
+
+    // distance haze: far water fades into the same color the horizon has, which also hides the edge of the sea
+    const float haze = 1.0f - exp(-pow(distance / 600.0f, 2.0f));
+    const float3 haze_color = sky_color(normalize(float3(-view.x, 0.0f, -view.z)));
+
+    return float4(lerp(lerp(body, mirrored, fresnel), haze_color, haze), 1.0f);
 }
