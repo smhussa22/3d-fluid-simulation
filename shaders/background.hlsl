@@ -40,18 +40,13 @@ float caustic(float2 uv, float t)
     return pow(abs(brightness), 8.0f);
 }
 
-// the height of the sand at a spot on the ground (beach mode): flat, then rising along the slope, then a flat top;
-// sand banks stand around the other three sides of the tank, so the water sits in a pool
+// the height of the sand at a spot on the ground (beach mode): the beach slope rises from beach.x until it reaches the top level (a little above the water), and
+// steep sand banks rise just outside the other three sides of the tank to that same level, so the water sits in a pool and the sand beyond is one flat plain
 float ground_height(float2 xz)
 {
-    float height = floor_y + min(max(xz.x - beach.x, 0.0f) * beach.y, (beach.z - beach.x) * beach.y);
-
-    if (xz.x < tank_xz.x || xz.y < tank_xz.y || xz.y > tank_xz.w)
-    {
-        height = max(height, floor_y + beach.w + 0.15f);
-    }
-
-    return height;
+    const float top = beach.w + 0.15f;
+    const float outside = max(max(tank_xz.x - xz.x, 0.0f), max(max(tank_xz.y - xz.y, xz.y - tank_xz.w), 0.0f));
+    return floor_y + min(top, max(max(xz.x - beach.x, 0.0f) * beach.y, outside * 6.0f));
 }
 
 // one big triangle that covers the whole screen, with no vertex buffer
@@ -124,7 +119,8 @@ float4 ps_main(float4 position : SV_Position) : SV_Target
         const float3 sand_normal = normalize(float3(-dx, 2.0f * eps, -dz));
 
         // warm sand with a little variation, lit by the sun
-        const float grain = 0.96f + 0.04f * sin(sand_hit.x * 23.0f + sin(sand_hit.z * 9.0f) * 2.0f) * sin(sand_hit.z * 31.0f);
+        // (the grain fades with distance, where it would only alias)
+        const float grain = 1.0f - lerp(0.04f, 0.0f, saturate(far_t / 25.0f)) * (0.5f + 0.5f * sin(sand_hit.x * 23.0f + sin(sand_hit.z * 9.0f) * 2.0f) * sin(sand_hit.z * 31.0f));
         float3 sand_color = float3(0.78f, 0.66f, 0.46f) * grain * (0.45f + 0.65f * saturate(dot(sand_normal, sun_direction)));
 
         // under the water, light bends into bright moving lines on the sand
