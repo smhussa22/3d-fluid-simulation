@@ -44,6 +44,7 @@ try
 
     // "--particles N" fills a tank with a cube of about N particles (n x n x n), dropped from a little above the floor; with no argument the small default block is used
     int requested_particles { 0 };
+    bool hide_gui { false };         // "--no-gui": don't draw the controls panel (for clean screenshots)
     bool beach_mode { false };       // "--beach": a long tank with a sloping sandy beach and a wave-maker paddle
     bool spacing_given { false };    // whether "--spacing" was passed (the beach picks a finer default)
     float particle_spacing { 0.1f }; // how far apart the particles start, in meters; smaller = smaller particles = finer water (needs more particles to fill the same volume)
@@ -75,6 +76,13 @@ try
         {
 
             beach_mode = true;
+
+        }
+
+        if (std::string_view { argv[i] } == "--no-gui")
+        {
+
+            hide_gui = true;
 
         }
 
@@ -566,7 +574,13 @@ try
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
         graphics.context()->Draw(24u, 0u);
         // draw the on-screen overlay on top of the scene
-        gui.render();
+        if (!hide_gui)
+        {
+
+            gui.render();
+
+        }
+
         
         graphics.present(false);
         window.pollEvents();
