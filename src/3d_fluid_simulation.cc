@@ -237,13 +237,6 @@ try
 
         }
 
-        if (std::string_view { argv[i] } == "--ocean")
-        {
-
-            view.ocean = true;
-
-        }
-
     }
 
     // the tank outline: a shader that draws a box's 12 edges, and the box corners it reads
@@ -274,27 +267,6 @@ try
     };
 
     ConstantBuffer particle_params_buffer { graphics, sizeof(ParticleParams) };
-
-    // the ocean: a big grid of quads (made in the vertex shader from the vertex number) pushed around by waves; the layout matches the OceanParams cbuffer in ocean.hlsl
-    struct OceanParams
-    {
-
-        float time;            // seconds since start
-        float wave_height;     // height of the biggest wave, trough to crest, in meters
-        float wavelength;      // distance between crests of the biggest wave, in meters
-        float choppiness;      // 0 = rounded waves, 1 = sharp crests
-        float wind_angle;      // direction the waves travel, in radians
-        float patch_extent;    // meters from the middle of the sea to each edge
-        float grid_cells;      // quads along each side of the sea mesh
-        float foam_amount;     // how bright the crest foam is
-        float foam_threshold;  // how pinched the surface must get before it foams
-        float padding[3];      // fills the last 16 bytes
-
-    };
-
-    constexpr float ocean_grid_cells { 512.0f };
-    RenderShader ocean_shader { graphics, L"shaders/ocean.hlsl" };
-    ConstantBuffer ocean_params_buffer { graphics, sizeof(OceanParams) };
     Gui gui { window, graphics };
 
     // the physics advances in fixed-size steps, however fast frames are drawn
@@ -304,7 +276,6 @@ try
     constexpr int max_steps_per_frame { 16 }; // if the physics falls behind, run slower than real time instead of spiraling
     double accumulator { 0.0 };
     bool r_was_down { false };
-    bool ocean_was_on { false }; // last frame's mode, to notice the switch and move the camera
 
     // keep running until closed (on escape key), keep redrawing and handle input
     while (!window.shouldClose())
@@ -321,14 +292,6 @@ try
         const double now { window.time() };
         accumulator += std::min(now - previous_time, 0.05);
         previous_time = now;
-
-        // the ocean does not use the particles, so don't simulate them
-        if (view.ocean)
-        {
-
-            accumulator = 0.0;
-
-        }
 
         int steps_this_frame { 0 };
 
@@ -383,27 +346,6 @@ try
 
         r_was_down = r_is_down;
 
-        // switching modes moves the camera: back off to see the sea, or frame the tank again
-        if (view.ocean != ocean_was_on)
-        {
-
-            if (view.ocean)
-            {
-
-                camera.set_view({ 0.0f, 1.0f, 0.0f }, 22.0f, 0.18f);
-
-            }
-            else
-            {
-
-                camera.frame(bounds_min, bounds_max);
-
-            }
-
-            ocean_was_on = view.ocean;
-
-        }
-
         // everything the sphere passes share: the particle positions, the camera, and the sphere settings
         ::ID3D11ShaderResourceView* srv { simulation.position_buffer().shader_resource_view() };
         ::ID3D11ShaderResourceView* density_srv { simulation.density_buffer().shader_resource_view() };
@@ -421,7 +363,7 @@ try
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
         // the water surface and both debug views are built from the same maps (depth, smoothed depth, normals), so build them whenever any of those is showing
-        const bool needs_maps { !view.ocean && (view.surface || view.show_depth || view.show_normals) };
+        const bool needs_maps { view.surface || view.show_depth || view.show_normals };
         const bool show_surface { view.surface && !view.show_depth && !view.show_normals };
 
         if (needs_maps)
@@ -463,31 +405,7 @@ try
 
         }
 
-        if (view.ocean)
-        {
-
-            // the sky: the background shader with the floor pushed far out of sight, drawn straight into the window
-            const WaterParams sky_params { 0.0f, 0.0f, -100000.0f, 0.0f, { 0.0f, 0.0f, 0.0f, 0.0f } };
-            water_params_buffer.write(graphics, &sky_params);
-            water_params_buffer.bind_pixel(graphics, 4u);
-            normal_params_buffer.bind_pixel(graphics, 3u);
-            graphics.bind_back_buffer(false);
-            graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            background_shader.use(graphics);
-            graphics.context()->Draw(3u, 0u);
-            graphics.bind_back_buffer();
-
-            // the sea: one draw of the whole grid, 6 vertices per quad
-            const OceanParams ocean_params { static_cast<float>(window.time()), view.wave_height, view.wavelength, view.choppiness, ::DirectX::XMConvertToRadians(view.wind_degrees), 800.0f, ocean_grid_cells, view.ocean_foam_amount, view.ocean_foam_threshold, { 0.0f, 0.0f, 0.0f } };
-            ocean_params_buffer.write(graphics, &ocean_params);
-            ocean_params_buffer.bind_vertex(graphics, 5u);
-            ocean_params_buffer.bind_pixel(graphics, 5u);
-            ocean_shader.use(graphics);
-            graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            graphics.context()->Draw(static_cast<::UINT>(ocean_grid_cells * ocean_grid_cells) * 6u, 0u);
-
-        }
-        else if (view.show_normals)
+        if (view.show_normals)
         {
 
             // debug view: the normals as colors, covering the window
@@ -571,17 +489,11 @@ try
 
         }
 
-        // draw the tank outline as 12 lines, on top of whatever is showing (not in the ocean)
-        if (!view.ocean)
-        {
-
-            box_shader.use(graphics);
-            box_buffer.bind_vertex(graphics, 1u);
-            graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-            graphics.context()->Draw(24u, 0u);
-
-        }
-
+        // draw the tank outline as 12 lines, on top of whatever is showing
+        box_shader.use(graphics);
+        box_buffer.bind_vertex(graphics, 1u);
+        graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+        graphics.context()->Draw(24u, 0u);
         // draw the on-screen overlay on top of the scene
         gui.render();
         

@@ -42,15 +42,6 @@ void Camera::frame(const ::DirectX::XMFLOAT3& box_min, const ::DirectX::XMFLOAT3
 
 }
 
-void Camera::set_view(const ::DirectX::XMFLOAT3& target, float distance, float pitch)
-{
-
-    m_target = target;
-    m_distance = distance;
-    m_pitch = pitch;
-
-}
-
 Camera::ShaderData Camera::shader_data(float aspect) const
 {
 
@@ -76,7 +67,7 @@ Camera::ShaderData Camera::shader_data(float aspect) const
     ::DirectX::XMVECTOR target { ::DirectX::XMVectorSet(m_target.x, m_target.y, m_target.z, 1.0f) };
     ::DirectX::XMVECTOR up { ::DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f) };
     ::DirectX::XMMATRIX view { ::DirectX::XMMatrixLookAtLH(_eye(), target, up) };
-    ::DirectX::XMMATRIX projection { ::DirectX::XMMatrixPerspectiveFovLH(::DirectX::XMConvertToRadians(fov_degrees), aspect, 0.1f, 1500.0f ) };
+    ::DirectX::XMMATRIX projection { ::DirectX::XMMatrixPerspectiveFovLH(::DirectX::XMConvertToRadians(fov_degrees), aspect, 0.1f, 100.0f ) };
 
     ::DirectX::XMFLOAT4X4 result {};
     ::DirectX::XMStoreFloat4x4(&result, view * projection);

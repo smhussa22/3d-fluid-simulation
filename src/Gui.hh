@@ -28,13 +28,6 @@ public:
         float thickness_fade { 3.0f };       // water thinner than this many particle diameters fades toward transparent and white
         float foam_speed { 2.0f };           // particle speed in m/s where foam starts (full foam at twice this)
         float foam_amount { 0.8f };          // how white thin, fast water gets
-        bool ocean { false };                // draw the procedural ocean instead of the particle tank
-        float wind_degrees { 35.0f };        // direction the ocean waves travel, in degrees around the up axis
-        float wave_height { 1.5f };          // height of the biggest wave, trough to crest, in meters
-        float wavelength { 40.0f };          // distance between crests of the biggest wave, in meters
-        float choppiness { 0.8f };           // 0 = rounded waves, 1 = sharp crests
-        float ocean_foam_amount { 1.0f };    // how bright the crest foam is on the ocean
-        float ocean_foam_threshold { 0.90f }; // how squeezed the surface must get before it foams (higher = more foam)
 
     };
 

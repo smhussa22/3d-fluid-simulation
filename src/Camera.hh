@@ -46,9 +46,6 @@ public:
     // points the camera at the middle of a box and backs it off far enough to see the whole box
     void frame(const ::DirectX::XMFLOAT3& box_min, const ::DirectX::XMFLOAT3& box_max);
 
-    // looks at a point from a given distance and pitch (radians above the horizon); used to put the camera at a good spot for the ocean
-    void set_view(const ::DirectX::XMFLOAT3& target, float distance, float pitch);
-
     // builds view * projection for the current camera, ready to upload to the constant buffer
     // takes camera position and builds the matrices ready to render hte scene
     ::DirectX::XMFLOAT4X4 viewProjection(float aspect) const;
