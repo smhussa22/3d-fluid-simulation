@@ -1,6 +1,10 @@
 #ifndef SCENE_COMMON_HLSLI
 #define SCENE_COMMON_HLSLI
 
+// sun direction
+// same direction as light direction (light source); outside the function so the ocean shader can use it too
+static const float3 sun_direction = normalize(float3(.4f, .8f, .45f));
+
 // the color of the sky in a world-space direction (normalized): pale at the horizon, deeper blue overhead
 float3 sky_color(float3 direction)
 {
@@ -12,10 +16,6 @@ float3 sky_color(float3 direction)
     // a bright, narrow haze band hugging the horizon (1 at the horizon, gone by about 20 degrees up); the floor fades into this same color, so the horizon reads as a glowing line
     const float band = pow(1.0f - height, 12.0f);
     sky = lerp(sky, float3(1.0f, 0.97f, 0.9f), band * 0.8f);
-
-    // sun direction
-    // same direction as light direction (light source)
-    static const float3 sun_direction = normalize(float3(.4f, .8f, .45f));
 
     // how closely the direction we're looking in aligns with the sun's direction
     // directly towards sun = 1, 45 deg ~0.5, 90 or opposite away = 0, etc.

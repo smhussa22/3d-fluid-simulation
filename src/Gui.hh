@@ -29,6 +29,10 @@ public:
         float foam_speed { 2.0f };           // particle speed in m/s where foam starts (full foam at twice this)
         float foam_amount { 0.8f };          // how white thin, fast water gets
         bool ocean { false };                // draw the procedural ocean instead of the particle tank
+        float wind_degrees { 35.0f };        // direction the ocean waves travel, in degrees around the up axis
+        float wave_height { 1.5f };          // height of the biggest wave, trough to crest, in meters
+        float wavelength { 40.0f };          // distance between crests of the biggest wave, in meters
+        float choppiness { 0.8f };           // 0 = rounded waves, 1 = sharp crests
 
     };
 

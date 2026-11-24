@@ -65,6 +65,10 @@ bool Gui::drawControls(Simulation::Settings& settings, ViewOptions& view)
 
         // switch between the particle tank and the ocean
         ::ImGui::Checkbox("Ocean mode", &view.ocean);
+        ::ImGui::SliderFloat("Wind direction (deg)", &view.wind_degrees, 0.0f, 360.0f, "%.0f");
+        ::ImGui::SliderFloat("Wave height (m)", &view.wave_height, 0.0f, 6.0f, "%.2f");
+        ::ImGui::SliderFloat("Wavelength (m)", &view.wavelength, 8.0f, 120.0f, "%.0f");
+        ::ImGui::SliderFloat("Choppiness", &view.choppiness, 0.0f, 1.0f, "%.2f");
 
         // sliders for the physics settings (log scale so small values are easy to hit)
         ::ImGui::SliderFloat("Viscosity", &settings.viscosity, 0.0f, 100.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
