@@ -477,7 +477,7 @@ try
             graphics.bind_back_buffer();
 
             // the sea: one draw of the whole grid, 6 vertices per quad
-            const OceanParams ocean_params { static_cast<float>(window.time()), view.wave_height, view.wavelength, view.choppiness, ::DirectX::XMConvertToRadians(view.wind_degrees), 800.0f, ocean_grid_cells, 1.0f, 0.75f, { 0.0f, 0.0f, 0.0f } };
+            const OceanParams ocean_params { static_cast<float>(window.time()), view.wave_height, view.wavelength, view.choppiness, ::DirectX::XMConvertToRadians(view.wind_degrees), 800.0f, ocean_grid_cells, view.ocean_foam_amount, view.ocean_foam_threshold, { 0.0f, 0.0f, 0.0f } };
             ocean_params_buffer.write(graphics, &ocean_params);
             ocean_params_buffer.bind_vertex(graphics, 5u);
             ocean_params_buffer.bind_pixel(graphics, 5u);

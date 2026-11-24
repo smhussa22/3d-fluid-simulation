@@ -148,9 +148,14 @@ float4 ps_main(VertexOutput input) : SV_Target
     const float crest = saturate(input.world.y / max(wave_height, 0.1f) * 0.8f + 0.35f);
     const float3 body = lerp(float3(0.01f, 0.06f, 0.10f), float3(0.06f, 0.30f, 0.30f), crest) * (0.4f + 0.6f * saturate(dot(normal, sun_direction)));
 
+    // crest foam: where the surface is squeezed together (jacobian below the threshold) the water piles up and breaks, so it turns white; the foam travels with the crests
+    const float foam = saturate((foam_threshold - jacobian) / 0.25f) * foam_amount;
+    const float3 foam_color = float3(0.92f, 0.96f, 1.0f) * (0.55f + 0.45f * saturate(dot(normal, sun_direction)));
+    const float3 surface = lerp(lerp(body, mirrored, fresnel), foam_color, saturate(foam));
+
     // distance haze: far water fades into the same color the horizon has, which also hides the edge of the sea
     const float haze = 1.0f - exp(-pow(distance / 600.0f, 2.0f));
     const float3 haze_color = sky_color(normalize(float3(-view.x, 0.0f, -view.z)));
 
-    return float4(lerp(lerp(body, mirrored, fresnel), haze_color, haze), 1.0f);
+    return float4(lerp(surface, haze_color, haze), 1.0f);
 }
