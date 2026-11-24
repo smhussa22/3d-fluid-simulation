@@ -63,6 +63,9 @@ bool Gui::drawControls(Simulation::Settings& settings, ViewOptions& view)
     if (::ImGui::Begin("Controls", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
     {
 
+        // switch between the particle tank and the ocean
+        ::ImGui::Checkbox("Ocean mode", &view.ocean);
+
         // sliders for the physics settings (log scale so small values are easy to hit)
         ::ImGui::SliderFloat("Viscosity", &settings.viscosity, 0.0f, 100.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
         ::ImGui::SliderFloat("Stiffness", &settings.stiffness, 0.0f, 500.0f, "%.2f", ImGuiSliderFlags_Logarithmic);
