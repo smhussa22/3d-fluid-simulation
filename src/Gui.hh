@@ -28,6 +28,8 @@ public:
         float thickness_fade { 3.0f };       // water thinner than this many particle diameters fades toward transparent and white
         float foam_speed { 2.0f };           // particle speed in m/s where foam starts (full foam at twice this)
         float foam_amount { 0.8f };          // how white thin, fast water gets
+        float paddle_stroke { 0.0f };        // how far the wave-maker paddle slides, in meters (0 = still)
+        float paddle_period { 3.0f };        // seconds for the paddle to slide out and back
 
     };
 

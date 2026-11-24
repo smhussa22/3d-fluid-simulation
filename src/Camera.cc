@@ -42,6 +42,16 @@ void Camera::frame(const ::DirectX::XMFLOAT3& box_min, const ::DirectX::XMFLOAT3
 
 }
 
+void Camera::set_view(const ::DirectX::XMFLOAT3& target, float distance, float yaw, float pitch)
+{
+
+    m_target = target;
+    m_distance = distance;
+    m_yaw = yaw;
+    m_pitch = pitch;
+
+}
+
 Camera::ShaderData Camera::shader_data(float aspect) const
 {
 

@@ -14,6 +14,7 @@ cbuffer WaterParams : register(b4)
     float floor_y;              // height of the floor (the bottom of the tank)
     float time;                 // seconds since start
     float4 tank_xz;             // the tank's footprint: min x, min z, max x, max z
+    float4 beach;               // the sandy beach: x where it starts rising, tan(slope), x where it levels off, the water level (all 0 = no beach)
 };
 
 // a cheap animated caustic pattern: the bright, wobbling lines light makes on the floor after bending through a rippling surface
@@ -39,6 +40,20 @@ float caustic(float2 uv, float t)
     return pow(abs(brightness), 8.0f);
 }
 
+// the height of the sand at a spot on the ground (beach mode): flat, then rising along the slope, then a flat top;
+// sand banks stand around the other three sides of the tank, so the water sits in a pool
+float ground_height(float2 xz)
+{
+    float height = floor_y + min(max(xz.x - beach.x, 0.0f) * beach.y, (beach.z - beach.x) * beach.y);
+
+    if (xz.x < tank_xz.x || xz.y < tank_xz.y || xz.y > tank_xz.w)
+    {
+        height = max(height, floor_y + beach.w + 0.15f);
+    }
+
+    return height;
+}
+
 // one big triangle that covers the whole screen, with no vertex buffer
 float4 vs_main(uint id : SV_VertexID) : SV_Position
 {
@@ -57,6 +72,69 @@ float4 ps_main(float4 position : SV_Position) : SV_Target
     if (ray.y > -0.0001f)
     {
         return float4(sky_color(ray), 1.0f);
+    }
+
+    // beach mode: march along the ray until it dips under the sand, then narrow the hit down by halving the last step
+    if (beach.y > 0.0f)
+    {
+        float near_t = 0.0f;
+        float far_t = -1.0f;
+
+        for (int step_index = 0; step_index < 220; ++step_index)
+        {
+            const float next_t = near_t + max(0.03f, near_t * 0.02f);
+            const float3 point_on_ray = camera_eye.xyz + ray * next_t;
+
+            if (point_on_ray.y < ground_height(point_on_ray.xz))
+            {
+                far_t = next_t;
+                break;
+            }
+
+            near_t = next_t;
+        }
+
+        // never reached the ground: it is far off, so it is lost in the haze
+        if (far_t < 0.0f)
+        {
+            return float4(sky_color(float3(ray.x, 0.0f, ray.z)), 1.0f);
+        }
+
+        for (int refine = 0; refine < 8; ++refine)
+        {
+            const float middle_t = 0.5f * (near_t + far_t);
+            const float3 middle_point = camera_eye.xyz + ray * middle_t;
+
+            if (middle_point.y < ground_height(middle_point.xz))
+            {
+                far_t = middle_t;
+            }
+            else
+            {
+                near_t = middle_t;
+            }
+        }
+
+        const float3 sand_hit = camera_eye.xyz + ray * far_t;
+
+        // the sand's surface direction from how the height changes to each side
+        const float eps = 0.05f;
+        const float dx = ground_height(sand_hit.xz + float2(eps, 0.0f)) - ground_height(sand_hit.xz - float2(eps, 0.0f));
+        const float dz = ground_height(sand_hit.xz + float2(0.0f, eps)) - ground_height(sand_hit.xz - float2(0.0f, eps));
+        const float3 sand_normal = normalize(float3(-dx, 2.0f * eps, -dz));
+
+        // warm sand with a little variation, lit by the sun
+        const float grain = 0.96f + 0.04f * sin(sand_hit.x * 23.0f + sin(sand_hit.z * 9.0f) * 2.0f) * sin(sand_hit.z * 31.0f);
+        float3 sand_color = float3(0.78f, 0.66f, 0.46f) * grain * (0.45f + 0.65f * saturate(dot(sand_normal, sun_direction)));
+
+        // under the water, light bends into bright moving lines on the sand
+        if (sand_hit.x > tank_xz.x && sand_hit.x < tank_xz.z && sand_hit.z > tank_xz.y && sand_hit.z < tank_xz.w && sand_hit.y < floor_y + beach.w)
+        {
+            sand_color += caustic(sand_hit.xz / 1.5f, time * 0.6f) * float3(0.8f, 0.95f, 1.0f) * 0.4f;
+        }
+
+        const float sand_haze = 1.0f - exp(-far_t * 0.01f);
+        return float4(lerp(sand_color, sky_color(float3(ray.x, 0.0f, ray.z)), sand_haze), 1.0f);
     }
 
     // where the ray reaches the floor plane

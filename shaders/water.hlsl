@@ -31,6 +31,7 @@ cbuffer WaterParams : register(b4)
     float floor_y;
     float time;
     float4 tank_xz;             // the tank's footprint: min x, min z, max x, max z (used by the background shader)
+    float4 beach;               // the sandy beach: x where it starts rising, tan(slope), x where it levels off, the water level (used by the background shader)
 };
 
 // one big triangle that covers the whole screen, with no vertex buffer

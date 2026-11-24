@@ -90,6 +90,10 @@ bool Gui::drawControls(Simulation::Settings& settings, ViewOptions& view)
         ::ImGui::SliderFloat("Foam speed (m/s)", &view.foam_speed, 0.2f, 10.0f, "%.1f");
         ::ImGui::SliderFloat("Foam amount", &view.foam_amount, 0.0f, 1.5f, "%.2f");
 
+        // the wave-maker paddle at the deep end
+        ::ImGui::SliderFloat("Paddle stroke (m)", &view.paddle_stroke, 0.0f, 2.0f, "%.2f");
+        ::ImGui::SliderFloat("Paddle period (s)", &view.paddle_period, 1.0f, 8.0f, "%.1f");
+
         if (::ImGui::Button("Reset (R)"))
         {
 

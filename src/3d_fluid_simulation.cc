@@ -17,6 +17,7 @@
 #include <print>
 #include <string_view>
 #include <utility>
+#include <array>
 #include <vector>
 #include <cstdint>
 
@@ -43,6 +44,8 @@ try
 
     // "--particles N" fills a tank with a cube of about N particles (n x n x n), dropped from a little above the floor; with no argument the small default block is used
     int requested_particles { 0 };
+    bool beach_mode { false };       // "--beach": a long tank with a sloping sandy beach and a wave-maker paddle
+    bool spacing_given { false };    // whether "--spacing" was passed (the beach picks a finer default)
     float particle_spacing { 0.1f }; // how far apart the particles start, in meters; smaller = smaller particles = finer water (needs more particles to fill the same volume)
 
     for (int i { 1 }; i + 1 < argc; ++i)
@@ -59,6 +62,19 @@ try
         {
 
             particle_spacing = std::stof(argv[i + 1]);
+            spacing_given = true;
+
+        }
+
+    }
+
+    for (int i { 1 }; i < argc; ++i)
+    {
+
+        if (std::string_view { argv[i] } == "--beach")
+        {
+
+            beach_mode = true;
 
         }
 
@@ -82,7 +98,26 @@ try
     ::DirectX::XMFLOAT3 bounds_min { -0.6f, -0.6f, -0.6f };
     ::DirectX::XMFLOAT3 bounds_max { 0.6f, 0.6f, 0.6f };
 
-    if (requested_particles > 0)
+    Scenario beach_scenario {};
+
+    if (beach_mode)
+    {
+
+        if (!spacing_given)
+        {
+
+            particle_spacing = 0.04f;
+
+        }
+
+        beach_scenario = make_beach_scenario(particle_spacing);
+        points = std::move(beach_scenario.points);
+        bounds_min = beach_scenario.bounds_min;
+        bounds_max = beach_scenario.bounds_max;
+        std::println("{} particles on a {:.0f} m beach tank", points.size(), bounds_max.x - bounds_min.x);
+
+    }
+    else if (requested_particles > 0)
     {
 
         const int side { std::max(1, static_cast<int>(std::lround(std::cbrt(static_cast<double>(requested_particles))))) };
@@ -120,6 +155,13 @@ try
     // how big each drawn sphere is: a bit bigger than half the spacing, so neighboring spheres overlap and fill the gaps between particles
     const float particle_radius { 0.75f * particle_spacing };
     GpuSimulation simulation { graphics, std::move(points), bounds_min, bounds_max, particle_spacing };
+
+    if (beach_mode)
+    {
+
+        simulation.set_beach(beach_scenario.beach_start, beach_scenario.beach_angle);
+
+    }
     RenderShader render_shader { graphics, L"shaders/particles.hlsl" };
 
     // the depth pass: the spheres drawn again, writing each pixel's distance from the camera into a texture (0 where there is no water); the debug shader shows that texture on screen
@@ -127,6 +169,13 @@ try
     RenderShader depth_shader { graphics, L"shaders/particle_depth.hlsl" };
     RenderShader show_depth_shader { graphics, L"shaders/show_depth.hlsl" };
     Gui::ViewOptions view {};
+
+    if (beach_mode)
+    {
+
+        view.paddle_stroke = 0.8f;
+
+    }
 
     // the blur: two more depth textures (the first pass writes into the second, the second pass writes the smoothed result into the third), and its settings
     RenderTarget blur_target { graphics, window.width(), window.height(), DXGI_FORMAT_R32_FLOAT };
@@ -183,6 +232,7 @@ try
         float floor_y;               // height of the floor (the bottom of the tank)
         float time;                  // seconds since start, for the moving caustics
         float tank_xz[4];            // the tank's footprint: min x, min z, max x, max z
+        float beach[4];              // the sandy beach: x where it starts rising, tan(slope), x where it levels off, the water level (all 0 = no beach)
 
     };
 
@@ -248,6 +298,14 @@ try
     // orbit camera, plus the constant buffer that carries its matrix to the shader
     Camera camera {};
     camera.frame(bounds_min, bounds_max);
+
+    // the beach tank is long and low, so look at it from the beach side at an angle, back toward the paddle
+    if (beach_mode)
+    {
+
+        camera.set_view({ 5.0f, 0.3f, 0.0f }, 12.0f, 1.0f, 0.35f);
+
+    }
     ConstantBuffer camera_buffer { graphics, sizeof(Camera::ShaderData) };
 
     // how the particles are drawn: sphere radius, the light, and the water color (the layout matches the ParticleParams cbuffer in particles.hlsl)
@@ -277,6 +335,10 @@ try
     double accumulator { 0.0 };
     bool r_was_down { false };
 
+    // the beach as the background shader needs it (all zeros when there is no beach)
+    const float beach_water_level { 0.6f };
+    const std::array<float, 4> beach_params { beach_mode ? std::array<float, 4> { beach_scenario.beach_start, std::tan(beach_scenario.beach_angle), bounds_max.x, beach_water_level } : std::array<float, 4> { 0.0f, 0.0f, 0.0f, 0.0f } };
+
     // keep running until closed (on escape key), keep redrawing and handle input
     while (!window.shouldClose())
     {
@@ -293,6 +355,7 @@ try
         accumulator += std::min(now - previous_time, 0.05);
         previous_time = now;
 
+        simulation.set_wavemaker(view.paddle_stroke, view.paddle_period);
         int steps_this_frame { 0 };
 
         while (accumulator >= step_time && steps_this_frame < max_steps_per_frame)
@@ -350,7 +413,7 @@ try
         ::ID3D11ShaderResourceView* srv { simulation.position_buffer().shader_resource_view() };
         ::ID3D11ShaderResourceView* density_srv { simulation.density_buffer().shader_resource_view() };
         ::ID3D11ShaderResourceView* velocity_srv { simulation.velocity_buffer().shader_resource_view() };
-        const ParticleParams particle_params { particle_radius, view.spray_threshold, view.spray_size, view.thickness_fade, { 0.4f, 0.8f, 0.45f, 0.0f }, { 0.25f, 0.55f, 1.0f, 1.0f }, view.foam_speed, view.foam_amount, { 0.0f, 0.0f } };
+        const ParticleParams particle_params { particle_radius, view.spray_threshold, view.spray_size, view.thickness_fade, { 0.4f, 0.8f, 0.45f, 0.0f }, beach_mode ? ::DirectX::XMFLOAT4 { 0.08f, 0.5f, 0.5f, 1.0f } : ::DirectX::XMFLOAT4 { 0.25f, 0.55f, 1.0f, 1.0f }, view.foam_speed, view.foam_amount, { 0.0f, 0.0f } };
         particle_params_buffer.write(graphics, &particle_params);
         camera_buffer.bind_vertex(graphics, 0u);
         camera_buffer.bind_pixel(graphics, 0u);
@@ -449,7 +512,7 @@ try
             graphics.set_additive_blending(false);
 
             // the settings the background and water shaders read
-            const WaterParams water_params { view.refraction_strength, view.absorption_strength, simulation.boundsMin().y, static_cast<float>(window.time()), { simulation.boundsMin().x, simulation.boundsMin().z, simulation.boundsMax().x, simulation.boundsMax().z } };
+            const WaterParams water_params { view.refraction_strength, view.absorption_strength, simulation.boundsMin().y, static_cast<float>(window.time()), { simulation.boundsMin().x, simulation.boundsMin().z, simulation.boundsMax().x, simulation.boundsMax().z }, { beach_params[0], beach_params[1], beach_params[2], beach_params[3] } };
             water_params_buffer.write(graphics, &water_params);
             water_params_buffer.bind_pixel(graphics, 4u);
             normal_params_buffer.bind_pixel(graphics, 3u);
@@ -489,7 +552,15 @@ try
 
         }
 
-        // draw the tank outline as 12 lines, on top of whatever is showing
+        // draw the tank outline as 12 lines, on top of whatever is showing (the beach tank outlines just the wave-maker paddle instead)
+        if (beach_mode)
+        {
+
+            const ::DirectX::XMFLOAT4 paddle_corners[2] { { simulation.paddle_x() - 0.06f, 0.0f, simulation.boundsMin().z, 0.0f }, { simulation.paddle_x(), 1.0f, simulation.boundsMax().z, 0.0f } };
+            box_buffer.write(graphics, paddle_corners);
+
+        }
+
         box_shader.use(graphics);
         box_buffer.bind_vertex(graphics, 1u);
         graphics.context()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
