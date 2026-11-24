@@ -41,7 +41,12 @@ float4 ps_main(float4 position : SV_Position) : SV_Target
 
     // alternating light and dark tiles, 0.4 m wide
     const float2 tile = floor(hit.xz / 0.4f);
-    const float checker = fmod(abs(tile.x + tile.y), 2.0f);
+    float checker = fmod(abs(tile.x + tile.y), 2.0f);
+
+    // far away, a tile is smaller than a pixel and the pattern aliases into rings: fade to the average gray once one pixel covers a good part of a tile
+    // (a pixel's footprint on the floor grows with distance, and stretches out at grazing angles)
+    const float footprint = distance_to_floor * (2.0f * tan_half_fov.y / screen_size.y) / max(-ray.y, 0.02f);
+    checker = lerp(checker, 0.5f, smoothstep(0.1f, 0.35f, footprint));
     const float3 floor_color = lerp(float3(0.16f, 0.17f, 0.2f), float3(0.62f, 0.64f, 0.68f), checker);
 
     // far tiles fade into the haze of the horizon
